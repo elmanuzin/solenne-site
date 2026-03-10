@@ -52,30 +52,19 @@ export default async function Home() {
   return (
     <div className="pb-20">
       <section
-        className="w-full min-h-[50vh] md:min-h-[80vh] flex items-center justify-center overflow-hidden bg-contain md:bg-cover bg-no-repeat bg-center"
+        className="relative w-full min-h-[50vh] md:min-h-[80vh] flex items-center justify-center overflow-hidden bg-contain md:bg-cover bg-no-repeat bg-center"
         style={{
           backgroundImage: "url('/bannersolenesite.jpeg')",
           backgroundPosition: "center",
         }}
-      />
-
-      <section className="w-full flex justify-center px-6 py-6 bg-brand-bg">
-        <div className="w-full max-w-2xl text-center">
-          <h1 className="font-heading text-3xl md:text-5xl lg:text-6xl font-bold text-brand-text">
-            Moda feminina com presença e leveza
-          </h1>
-          <p className="text-sm md:text-base text-brand-muted mt-3">
-            Escolha sua peça, confirme pelo WhatsApp e receba com rapidez em Londrina.
-            Estilo elegante, minimalista e atual.
-          </p>
-          <div className="mt-6 flex justify-center">
-            <Link
-              href="/catalogo"
-              className="w-full sm:w-auto py-4 px-8 rounded-full bg-black text-white text-center"
-            >
-              Ver coleção
-            </Link>
-          </div>
+      >
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full px-6 flex justify-center">
+          <Link
+            href="/catalogo"
+            className="w-full max-w-xs sm:w-auto py-4 px-8 rounded-full bg-black text-white text-center"
+          >
+            Ver coleção
+          </Link>
         </div>
       </section>
 
