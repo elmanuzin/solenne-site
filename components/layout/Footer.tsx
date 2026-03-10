@@ -5,7 +5,7 @@ import { categories } from "@/lib/data";
 export default function Footer() {
     return (
         <footer className="bg-brand-text text-white/80">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
+            <div className="max-w-7xl mx-auto px-4 md:px-10 py-16">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
                     {/* Brand */}
                     <div>
@@ -118,7 +118,7 @@ export default function Footer() {
 
             {/* Bottom bar */}
             <div className="border-t border-white/10">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+                <div className="max-w-7xl mx-auto px-4 md:px-10 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
                     <p className="text-xs text-white/40">
                         © {new Date().getFullYear()} Solenne. Todos os direitos reservados.
                     </p>

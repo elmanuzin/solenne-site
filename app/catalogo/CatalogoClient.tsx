@@ -52,16 +52,16 @@ export default function CatalogoClient({
             : null;
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <div className="max-w-7xl mx-auto px-4 md:px-10 py-8 sm:py-12">
             <div className="mb-8">
                 <p className="text-xs uppercase tracking-[0.2em] text-brand-accent font-medium mb-1">
                     Catálogo
                 </p>
-                <h1 className="font-heading text-3xl sm:text-4xl font-bold">
+                <h1 className="font-heading text-3xl md:text-5xl lg:text-6xl font-bold">
                     {categoryInfo ? categoryInfo.name : "Todos os Produtos"}
                 </h1>
                 {categoryInfo && (
-                    <p className="text-sm text-brand-muted mt-2">
+                    <p className="text-sm md:text-base text-brand-muted mt-2">
                         {categoryInfo.description}
                     </p>
                 )}

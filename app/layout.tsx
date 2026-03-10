@@ -44,10 +44,10 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body
-        className={`${playfair.variable} ${inter.variable} antialiased bg-brand-bg text-brand-text`}
+        className={`${playfair.variable} ${inter.variable} antialiased bg-brand-bg text-brand-text overflow-x-hidden`}
       >
         <Header />
-        <main className="min-h-screen">{children}</main>
+        <main className="min-h-screen overflow-x-hidden">{children}</main>
         <Footer />
         <WhatsAppFloating />
       </body>

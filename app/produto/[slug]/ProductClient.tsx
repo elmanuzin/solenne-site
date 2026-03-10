@@ -55,7 +55,7 @@ export default function ProductClient({
     };
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+        <div className="max-w-7xl mx-auto px-4 md:px-10 py-8 sm:py-12">
             <nav className="flex items-center gap-1.5 text-xs text-brand-muted mb-8 overflow-x-auto whitespace-nowrap pb-2">
                 <Link href="/" className="hover:text-brand-text transition-colors">
                     Início
@@ -134,7 +134,7 @@ export default function ProductClient({
 
                 <div className="flex flex-col pt-2">
                     <div className="mb-6">
-                        <h1 className="font-heading text-4xl sm:text-5xl font-bold text-brand-text mb-2 leading-tight">
+                        <h1 className="font-heading text-3xl md:text-5xl lg:text-6xl font-bold text-brand-text mb-2 leading-tight">
                             {product.name}
                         </h1>
                         <p className="text-sm text-brand-muted uppercase tracking-[0.18em]">
@@ -152,7 +152,7 @@ export default function ProductClient({
                         </div>
                     </div>
 
-                    <p className="text-base text-brand-text/80 leading-relaxed mb-8 border-l-2 border-brand-accent/20 pl-4">
+                    <p className="text-sm md:text-base text-brand-text/80 leading-relaxed mb-8 border-l-2 border-brand-accent/20 pl-4">
                         {product.description}
                     </p>
 

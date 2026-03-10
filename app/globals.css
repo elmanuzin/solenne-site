@@ -23,6 +23,7 @@
 
     html {
         scroll-behavior: smooth;
+        overflow-x: hidden;
     }
 
     body {
@@ -32,6 +33,7 @@
         line-height: 1.6;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        overflow-x: hidden;
     }
 
     h1,
@@ -59,7 +61,7 @@
 
     /* Layout */
     .container-custom {
-        @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+        @apply max-w-7xl mx-auto px-4 md:px-10;
     }
 
     .section-spacing {
@@ -68,7 +70,7 @@
 
     /* Typography */
     .text-heading-1 {
-        @apply font-heading text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-brand-text leading-[1.1];
+        @apply font-heading text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight text-brand-text leading-[1.1];
     }
 
     .text-heading-2 {
@@ -80,7 +82,7 @@
     }
 
     .text-body {
-        @apply font-body text-base text-brand-text/80 leading-relaxed;
+        @apply font-body text-sm md:text-base text-brand-text/80 leading-relaxed;
     }
 
     /* Components */

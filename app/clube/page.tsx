@@ -61,7 +61,7 @@ export default function ClubePage() {
                     Clube Solenne
                 </p>
                 <h1 className="text-heading-1 mb-4">Clube Solenne</h1>
-                <p className="text-body text-lg">
+                <p className="text-body">
                     Benefícios exclusivos para clientes da Solenne.
                 </p>
             </header>

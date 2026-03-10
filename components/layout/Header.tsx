@@ -44,7 +44,7 @@ export default function Header() {
     return (
         <header className="sticky top-0 z-50 bg-brand-bg/95 backdrop-blur-sm">
             {/* Top announcement bar */}
-            <div className="bg-black text-white text-center text-xs py-1.5 tracking-wider font-medium">
+            <div className="bg-black text-white text-center text-xs py-1.5 px-4 md:px-10 tracking-wider font-medium">
                 ✨ Entrega via Uber em Londrina • Frete calculado no WhatsApp ✨
             </div>
 
@@ -172,7 +172,7 @@ export default function Header() {
             {/* Mobile nav */}
             {mobileOpen && (
                 <nav className="lg:hidden bg-brand-bg">
-                    <div className="px-4 py-4 space-y-1">
+                    <div className="px-4 md:px-10 py-4 space-y-1">
                         <p className="text-xs uppercase tracking-widest text-brand-muted mb-2 font-medium">
                             Categorias
                         </p>

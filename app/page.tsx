@@ -13,23 +13,23 @@ export default async function Home() {
   return (
     <div className="pb-20">
       <section
-        className="w-full min-h-[80vh] relative flex items-center justify-center"
+        className="w-full min-h-[60vh] md:min-h-[80vh] relative flex items-center justify-center overflow-x-hidden"
         style={{
           backgroundImage: "url('/bannersolenesite.jpeg')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
       >
-        <div className="absolute bottom-[110px] left-[52%] -translate-x-1/2 flex gap-4">
+        <div className="absolute bottom-8 md:bottom-[110px] left-1/2 md:left-[52%] -translate-x-1/2 w-[calc(100%-2rem)] max-w-sm sm:max-w-none sm:w-auto flex flex-col sm:flex-row gap-3 sm:gap-4">
           <Link
             href="/catalogo"
-            className="bg-black text-white px-6 py-3 rounded-full"
+            className="w-full sm:w-auto text-center bg-black text-white px-6 py-3 rounded-full"
           >
             Ver coleção
           </Link>
           <Link
             href="/contato"
-            className="border border-gray-400 px-6 py-3 rounded-full"
+            className="w-full sm:w-auto text-center border border-gray-400 px-6 py-3 rounded-full"
           >
             Falar com a Solenne
           </Link>
@@ -118,7 +118,7 @@ export default async function Home() {
             <span className="text-xs uppercase tracking-[0.2em] font-semibold">Categorias</span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {categories.map((category) => (
               <Link
                 key={category.slug}
@@ -134,10 +134,10 @@ export default async function Home() {
 
       <section className="section-spacing px-4 bg-brand-accent text-white text-center">
         <div className="max-w-2xl mx-auto">
-          <h2 className="font-heading text-3xl sm:text-4xl font-bold mb-6">
+          <h2 className="font-heading text-3xl md:text-5xl lg:text-6xl font-bold mb-6">
             Faça parte do Clube Solenne <span className="kiss-emoji">💋</span>
           </h2>
-          <p className="text-white/85 text-lg mb-8 leading-relaxed">
+          <p className="text-white/85 text-sm md:text-base mb-8 leading-relaxed">
             Acumule selos em cada compra e troque por brindes exclusivos.
           </p>
           <Link

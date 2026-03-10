@@ -21,8 +21,8 @@ export default function TrustBar() {
 
     return (
         <section className="py-14 sm:py-16 bg-white/45">
-            <div className="max-w-6xl mx-auto px-4 sm:px-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+            <div className="max-w-6xl mx-auto px-4 md:px-10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 lg:gap-8">
                     {items.map((item) => (
                         <div
                             key={item.title}
