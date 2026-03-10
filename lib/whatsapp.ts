@@ -52,16 +52,16 @@ export function generateProductAvailabilityMessage(
     productUrl: string
 ): string {
     const message = [
-        "Olá! Vi no site da Solenne e gostaria de saber se está disponível:",
+        "Olá! Vi este produto no site Solenne.",
         "",
         `Produto: ${productName}`,
         `Tamanho: ${size}`,
         `Cor: ${color}`,
         "",
+        "Você pode confirmar se está disponível?",
+        "",
         "Link do produto:",
         productUrl,
-        "",
-        "Pode me confirmar por favor? 💋",
     ].join("\n");
 
     return buildWhatsAppLink(message);

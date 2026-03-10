@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -17,6 +17,7 @@ import type { Product, SizeOption } from "@/types";
 import { formatPrice } from "@/lib/utils";
 import { generateProductAvailabilityMessage } from "@/lib/whatsapp";
 import { useCart } from "@/context/CartContext";
+import { trackEvent } from "@/lib/analytics";
 
 interface ProductClientProps {
     product: Product;
@@ -55,11 +56,27 @@ export default function ProductClient({
         productUrl
     );
 
+    useEffect(() => {
+        trackEvent("product_view", {
+            productId: product.id,
+            slug: product.slug,
+            category: product.category,
+        });
+    }, [product.category, product.id, product.slug]);
+
     const handleWhatsAppClick = (event: MouseEvent<HTMLAnchorElement>) => {
         if (!selectedColor || !selectedSize) {
             event.preventDefault();
             alert("Selecione cor e tamanho antes de comprar");
+            return;
         }
+
+        trackEvent("whatsapp_click", {
+            source: "product_page",
+            productId: product.id,
+            size: selectedSize,
+            color: selectedColor,
+        });
     };
 
     function handleAddToCart() {
@@ -174,6 +191,21 @@ export default function ProductClient({
                                     Em até 3x sem juros
                                 </span>
                             ) : null}
+                        </div>
+                        <div className="mt-4 space-y-2">
+                            <p className="text-sm font-semibold text-brand-text">
+                                🔥 Alta procura hoje
+                            </p>
+                            <p className="text-sm text-brand-text">
+                                Restam apenas {Math.max(0, product.stock)}{" "}
+                                {Math.max(0, product.stock) === 1 ? "unidade" : "unidades"}
+                            </p>
+                            <p className="text-sm text-brand-muted">
+                                🚚 Entrega rápida em Londrina
+                            </p>
+                            <p className="text-sm text-brand-muted">
+                                Mais de 120 clientes satisfeitas
+                            </p>
                         </div>
                     </div>
 

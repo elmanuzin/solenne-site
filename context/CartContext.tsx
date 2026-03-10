@@ -9,6 +9,7 @@ import {
     type ReactNode,
 } from "react";
 import { CART_STORAGE_KEY, type CartItem, getCartItemKey } from "@/lib/cart";
+import { trackEvent } from "@/lib/analytics";
 
 type CartContextValue = {
     items: CartItem[];
@@ -62,14 +63,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }, [items]);
 
     function addToCart(item: CartItem) {
+        let wasAdded = false;
         setItems((current) => {
             const key = getCartItemKey(item);
             const exists = current.some((entry) => getCartItemKey(entry) === key);
             if (exists) {
                 return current;
             }
+            wasAdded = true;
             return [...current, item];
         });
+        if (wasAdded) {
+            trackEvent("add_to_cart", {
+                productId: item.productId,
+                nome: item.nome,
+                tamanho: item.tamanho,
+                cor: item.cor,
+            });
+        }
         setIsDrawerOpen(true);
     }
 

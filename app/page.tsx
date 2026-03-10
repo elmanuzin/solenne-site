@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
 import TrustBar from "@/components/ui/TrustBar";
 import ProductGrid from "@/components/catalog/ProductGrid";
+import HeroBannerClickable from "@/components/home/HeroBannerClickable";
 import { categories } from "@/lib/data";
 import {
   listBestSellerProducts,
@@ -42,33 +43,25 @@ function ProductSection({
 }
 
 export default async function Home() {
-  const [destaques, novidades, maisVendidos, maisVistos] = await Promise.all([
+  const [destaques, novidades, maisAmados, maisVendidos, maisVistos] = await Promise.all([
     listFeaturedProducts(8),
     listNewArrivals(8),
+    listBestSellerProducts(6),
     listBestSellerProducts(8),
     listMostViewedProducts(8),
   ]);
 
   return (
     <div className="pb-20">
-      <section
-        className="relative w-full min-h-[50vh] md:min-h-[80vh] flex items-center justify-center overflow-hidden bg-contain md:bg-cover bg-no-repeat bg-center"
-        style={{
-          backgroundImage: "url('/bannersolenesite.jpeg')",
-          backgroundPosition: "center",
-        }}
-      >
-        <div className="absolute left-[48%] top-[64%] -translate-x-1/2">
-          <a
-            href="/catalogo"
-            className="inline-flex items-center justify-center rounded-full bg-black px-8 py-3 text-white text-sm font-medium shadow-lg hover:scale-105 transition"
-          >
-            Ver coleção
-          </a>
-        </div>
-      </section>
+      <HeroBannerClickable />
 
       <TrustBar />
+
+      <ProductSection
+        title="Mais amados 💋"
+        subtitle="Os favoritos mais pedidos pelas clientes Solenne."
+        products={maisAmados}
+      />
 
       <section className="container-custom py-14 sm:py-16">
         <div className="rounded-3xl border border-brand-border bg-white/60 p-6 sm:p-8 md:p-10 shadow-sm">

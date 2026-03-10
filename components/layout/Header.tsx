@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { Menu, X, Heart, ChevronDown } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { Menu, X, Heart, ChevronDown, Search } from "lucide-react";
 import { categories } from "@/lib/data";
 
 const infoLinks = [
@@ -23,8 +24,11 @@ const productLinks = [
 ];
 
 export default function Header() {
+    const router = useRouter();
     const [mobileOpen, setMobileOpen] = useState(false);
     const [productsOpen, setProductsOpen] = useState(false);
+    const [searchValue, setSearchValue] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
     const productsMenuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -40,6 +44,22 @@ export default function Header() {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
+
+    useEffect(() => {
+        const timeout = window.setTimeout(() => {
+            setDebouncedSearch(searchValue.trim());
+        }, 300);
+
+        return () => window.clearTimeout(timeout);
+    }, [searchValue]);
+
+    function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const term = debouncedSearch || searchValue.trim();
+        const target = term ? `/catalogo?q=${encodeURIComponent(term)}` : "/catalogo";
+        router.push(target);
+        setMobileOpen(false);
+    }
 
     return (
         <header className="sticky top-0 z-50 bg-brand-bg/95 backdrop-blur-sm">
@@ -159,13 +179,32 @@ export default function Header() {
                         ))}
                     </nav>
 
-                    <Link
-                        href="/clube"
-                        className="flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-black hover:opacity-80 transition-opacity"
-                    >
-                        <Heart size={16} fill="currentColor" className="text-brand-accent" />
-                        Clube Solenne
-                    </Link>
+                    <div className="flex items-center gap-3">
+                        <form onSubmit={handleSearchSubmit} className="relative w-44 xl:w-56">
+                            <input
+                                value={searchValue}
+                                onChange={(event) => setSearchValue(event.target.value)}
+                                placeholder="Buscar peça..."
+                                className="w-full rounded-full border border-brand-border bg-white px-4 py-2 pr-10 text-sm text-brand-text shadow-sm outline-none focus:ring-1 focus:ring-brand-accent/30"
+                                aria-label="Buscar produtos por nome, categoria ou cor"
+                            />
+                            <button
+                                type="submit"
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full px-2 py-1 text-brand-muted hover:text-brand-text transition-colors"
+                                aria-label="Buscar"
+                            >
+                                <Search size={15} />
+                            </button>
+                        </form>
+
+                        <Link
+                            href="/clube"
+                            className="flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-black hover:opacity-80 transition-opacity"
+                        >
+                            <Heart size={16} fill="currentColor" className="text-brand-accent" />
+                            Clube Solenne
+                        </Link>
+                    </div>
                 </div>
             </div>
 
@@ -173,6 +212,23 @@ export default function Header() {
             {mobileOpen && (
                 <nav className="lg:hidden bg-brand-bg">
                     <div className="px-4 md:px-10 py-4 space-y-1">
+                        <form onSubmit={handleSearchSubmit} className="relative mb-4">
+                            <input
+                                value={searchValue}
+                                onChange={(event) => setSearchValue(event.target.value)}
+                                placeholder="Buscar peça..."
+                                className="w-full rounded-full border border-brand-border bg-white px-4 py-2 pr-10 text-sm text-brand-text shadow-sm outline-none focus:ring-1 focus:ring-brand-accent/30"
+                                aria-label="Buscar produtos por nome, categoria ou cor"
+                            />
+                            <button
+                                type="submit"
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full px-2 py-1 text-brand-muted hover:text-brand-text transition-colors"
+                                aria-label="Buscar"
+                            >
+                                <Search size={15} />
+                            </button>
+                        </form>
+
                         <p className="text-xs uppercase tracking-widest text-brand-muted mb-2 font-medium">
                             Categorias
                         </p>

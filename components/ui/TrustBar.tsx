@@ -14,8 +14,8 @@ export default function TrustBar() {
         },
         {
             icon: MessageCircle,
-            title: "Atendimento Direto",
-            desc: "Suporte via WhatsApp",
+            title: "Atendimento via WhatsApp",
+            desc: "Resposta rápida e personalizada",
         },
     ];
 

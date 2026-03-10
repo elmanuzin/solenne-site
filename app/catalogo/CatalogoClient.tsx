@@ -33,6 +33,7 @@ export default function CatalogoClient({
 }: CatalogoClientProps) {
     const searchParams = useSearchParams();
     const categoryFromQuery = searchParams.get("categoria");
+    const searchFromQuery = searchParams.get("q")?.trim() || "";
     const validCategories: CategorySlug[] = [
         "conjuntos",
         "body",
@@ -49,8 +50,8 @@ export default function CatalogoClient({
     const [selectedCategory, setSelectedCategory] = useState<
         CategorySlug | "all"
     >(initialCategory);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [searchQuery, setSearchQuery] = useState(searchFromQuery);
+    const [debouncedSearch, setDebouncedSearch] = useState(searchFromQuery);
     const [selectedColor, setSelectedColor] = useState<string | "all">("all");
     const [selectedSize, setSelectedSize] = useState<SizeOption | "all">("all");
     const [selectedPrice, setSelectedPrice] = useState<PriceFilterOption>("all");
@@ -63,6 +64,15 @@ export default function CatalogoClient({
 
         return () => window.clearTimeout(timeout);
     }, [searchQuery]);
+
+    useEffect(() => {
+        setSelectedCategory(initialCategory);
+    }, [initialCategory]);
+
+    useEffect(() => {
+        setSearchQuery(searchFromQuery);
+        setDebouncedSearch(searchFromQuery);
+    }, [searchFromQuery]);
 
     const colorOptions = useMemo(() => {
         return Array.from(

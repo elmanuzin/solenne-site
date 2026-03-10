@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Trash2, X } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { buildCartWhatsAppLink, getCartItemKey } from "@/lib/cart";
+import { trackEvent } from "@/lib/analytics";
 
 export default function CartDrawer() {
     const pathname = usePathname();
@@ -125,6 +126,12 @@ export default function CartDrawer() {
                                 href={whatsappLink}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={() =>
+                                    trackEvent("whatsapp_click", {
+                                        source: "cart_drawer",
+                                        items: items.length,
+                                    })
+                                }
                                 className="w-full inline-flex items-center justify-center rounded-full bg-[#25D366] text-white py-3.5 text-sm font-semibold hover:opacity-95 transition-opacity"
                             >
                                 Finalizar pedido no WhatsApp
