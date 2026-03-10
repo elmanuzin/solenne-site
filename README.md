@@ -1,36 +1,356 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Solenne 💋  
+### Elegant Fashion Store powered by WhatsApp Commerce
 
-## Getting Started
+[![Next.js](https://img.shields.io/badge/Next.js-14-black)]()
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)]()
+[![Supabase](https://img.shields.io/badge/Supabase-Backend-green)]()
+[![Vercel](https://img.shields.io/badge/Vercel-Deploy-black)]()
+[![License](https://img.shields.io/badge/license-private-red)]()
 
-First, run the development server:
+Solenne is a **WhatsApp-first fashion ecommerce platform** designed for fast purchasing and high conversion rates.
 
-```bash
+Customers browse products on the website and finalize purchases directly via **WhatsApp conversation with the store**.
+
+The platform focuses on:
+
+- simple purchase flow  
+- mobile-first experience  
+- high conversion optimization  
+- fast product management  
+
+---
+
+# 🌐 Live Store
+
+Production:
+
+
+https://usesolenne.shop
+
+
+---
+
+# 🖼 Preview
+
+Homepage Hero
+
+![Solenne Preview](docs/preview-home.png)
+
+Product Page
+
+![Product Preview](docs/preview-product.png)
+
+Admin Panel
+
+![Admin Preview](docs/preview-admin.png)
+
+*(optional: add screenshots later in /docs folder)*
+
+---
+
+# 🚀 Core Features
+
+## Product Catalog
+
+- product filtering
+- search by name
+- filter by size
+- filter by color
+- price sorting
+- category navigation
+
+---
+
+## WhatsApp Checkout
+
+Instead of a traditional checkout, purchases happen via WhatsApp.
+
+Generated message example:
+
+
+Olá! Vi este produto no site Solenne.
+
+Produto: Vestido Maia
+Tamanho: P
+Cor: Preto
+
+Você pode confirmar se está disponível?
+
+Link do produto:
+https://usesolenne.shop/produto/vestido-maia
+
+
+This drastically reduces checkout friction.
+
+---
+
+# 📈 Conversion Optimization
+
+Solenne includes several CRO features used in large fashion stores:
+
+### Hero Banner Clickable
+Entire banner links to catalog.
+
+### Scarcity Signals
+
+
+🔥 Alta procura hoje
+Restam apenas X unidades
+
+
+### Social Proof
+
+
+Mais de 120 clientes satisfeitas
+
+
+### Sticky Mobile CTA
+
+Mobile users see:
+
+
+Comprar no WhatsApp
+
+
+### Product Badges
+
+
+🔥 Mais vendido
+✨ Novo
+💋 Destaque
+
+
+### Most Loved Section
+
+Homepage automatically shows best sellers.
+
+---
+
+# 🧠 Analytics Events
+
+Events tracked for performance analysis:
+
+
+banner_click
+product_view
+add_to_cart
+whatsapp_click
+
+
+These allow conversion tracking like:
+
+
+conversion_rate = whatsapp_click / product_view
+
+
+---
+
+# 💋 Loyalty System
+
+Customers earn **kiss stamps 💋**.
+
+Database structure:
+
+
+clientes
+fidelidade
+selos_fidelidade
+selos_indicacao
+
+
+This allows campaigns such as:
+
+- loyalty rewards
+- referral bonuses
+- returning customer discounts
+
+---
+
+# ⚙ Admin Panel
+
+Admin dashboard allows:
+
+- add products
+- edit products
+- upload product images
+- import products via CSV
+- manage customers
+- manage banner
+- mark products as:
+
+
+destaque
+novidade
+mais_vendido
+
+
+---
+
+# 🏗 Architecture
+
+
+Frontend
+│
+├── Next.js (App Router)
+├── React
+├── TailwindCSS
+│
+Backend
+│
+├── Supabase
+│ ├── PostgreSQL
+│ ├── Auth
+│ ├── Storage
+│
+Infrastructure
+│
+├── Vercel (hosting)
+├── GitHub (version control)
+
+
+---
+
+# 🗄 Database Schema
+
+Main tables:
+
+
+produtos
+produto_tamanhos
+product_views
+clientes
+fidelidade
+pedidos
+admins
+site_config
+
+
+---
+
+## Entity Diagram
+
+
+clientes
+│
+└── fidelidade
+
+produtos
+│
+├── produto_tamanhos
+└── product_views
+
+pedidos
+│
+├── produto_id
+└── cliente_id
+
+
+---
+
+# 📂 Project Structure
+
+
+app/
+components/
+context/
+lib/
+services/
+types/
+docs/
+
+
+---
+
+# ⚡ Installation
+
+Clone repository
+
+
+git clone https://github.com/your-repo/solenne-site.git
+
+
+Enter project
+
+
+cd solenne-site
+
+
+Install dependencies
+
+
+npm install
+
+
+Run development server
+
+
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Open
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Learn More
+http://localhost:3000
 
-To learn more about Next.js, take a look at the following resources:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# 🚀 Deployment
 
-## Deploy on Vercel
+Deployment runs automatically through **Vercel**.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Push changes:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+git add .
+git commit -m "update"
+git push origin main
+
+
+Vercel builds and deploys automatically.
+
+---
+
+# 🔒 Security
+
+Security measures include:
+
+- admin route protection
+- safe Supabase queries
+- upload validation
+- sanitized WhatsApp messages
+
+---
+
+# 🛣 Product Roadmap
+
+Upcoming features:
+
+### Phase 1
+- coupon system
+- WhatsApp capture popup
+- abandoned cart recovery
+
+### Phase 2
+- AI product recommendations
+- complete look suggestions
+- product ranking
+
+### Phase 3
+- SEO automation
+- influencer tracking
+- automated marketing campaigns
+
+---
+
+# 👩‍💻 Development
+
+Built for **Solenne Fashion**.
+
+Elegant fashion pieces designed for confidence and individuality.
+
+
+Peças únicas para brilhar sem medo ✨
+
+
+---
