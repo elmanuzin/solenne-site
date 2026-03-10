@@ -13,6 +13,7 @@ export interface Product {
     featured?: boolean;
     newArrival?: boolean;
     isLancamento?: boolean;
+    createdAt?: string;
 }
 
 export type SizeOption = "P" | "M" | "G" | "GG" | "Único";

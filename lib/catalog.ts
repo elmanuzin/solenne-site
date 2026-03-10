@@ -23,6 +23,7 @@ function toProduct(product: DBProduct): Product {
         featured: product.featured,
         newArrival: product.newArrival,
         isLancamento: product.isLancamento,
+        createdAt: product.created_at,
     };
 }
 
