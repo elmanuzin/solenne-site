@@ -58,13 +58,13 @@ export default async function Home() {
           backgroundPosition: "center",
         }}
       >
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-full px-6 flex justify-center">
-          <Link
+        <div className="absolute left-[60%] top-[58%] -translate-x-1/2">
+          <a
             href="/catalogo"
-            className="w-full max-w-xs sm:w-auto py-4 px-8 rounded-full bg-black text-white text-center"
+            className="inline-flex items-center justify-center rounded-full bg-black px-8 py-3 text-white text-sm font-medium shadow-lg hover:scale-105 transition"
           >
             Ver coleção
-          </Link>
+          </a>
         </div>
       </section>
 
