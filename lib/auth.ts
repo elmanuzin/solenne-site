@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
+import { timingSafeEqual } from "node:crypto";
 import { getServerEnvVar, isProduction } from "@/lib/env";
 
 function getJwtSecret(): Uint8Array {
@@ -18,6 +19,31 @@ export const ADMIN_SESSION_DURATION = 24 * 60 * 60; // 24 hours in seconds
 
 // ─── PASSWORD ─────────────────────────────────────────
 
+const BCRYPT_HASH_REGEX = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+function normalizeBcryptHash(hash: string): string {
+    // Accept $2y$ legacy hashes by normalizing for bcryptjs verification.
+    if (hash.startsWith("$2y$")) {
+        return `$2b$${hash.slice(4)}`;
+    }
+    return hash;
+}
+
+function safeEqualStrings(a: string, b: string): boolean {
+    const aBuffer = Buffer.from(a);
+    const bBuffer = Buffer.from(b);
+
+    if (aBuffer.length !== bBuffer.length) {
+        return false;
+    }
+
+    return timingSafeEqual(aBuffer, bBuffer);
+}
+
+export function isBcryptHash(value: string): boolean {
+    return BCRYPT_HASH_REGEX.test(value.trim());
+}
+
 export async function hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, 12);
 }
@@ -26,7 +52,17 @@ export async function verifyPassword(
     password: string,
     hash: string
 ): Promise<boolean> {
-    return bcrypt.compare(password, hash);
+    const normalizedHash = hash.trim();
+    if (!normalizedHash) {
+        return false;
+    }
+
+    if (isBcryptHash(normalizedHash)) {
+        return bcrypt.compare(password, normalizeBcryptHash(normalizedHash));
+    }
+
+    // Legacy fallback (plaintext). Used only to allow one-time migration.
+    return safeEqualStrings(password, normalizedHash);
 }
 
 // ─── JWT ──────────────────────────────────────────────

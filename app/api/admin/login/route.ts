@@ -1,9 +1,11 @@
-import { compare } from "bcryptjs";
 import { NextResponse } from "next/server";
 import {
     ADMIN_COOKIE,
     ADMIN_SESSION_DURATION,
     createAdminSession,
+    hashPassword,
+    isBcryptHash,
+    verifyPassword,
 } from "@/lib/auth";
 import { isProduction } from "@/lib/env";
 import { LoginSchema } from "@/lib/schemas";
@@ -47,7 +49,7 @@ export async function POST(request: Request) {
         );
     }
 
-    const email = validation.data.email.toLowerCase();
+    const email = validation.data.email.trim().toLowerCase();
     const password = validation.data.password;
     const ip = getClientIp(request);
 
@@ -77,7 +79,8 @@ export async function POST(request: Request) {
     const { data: admin, error } = await supabase
         .from("admins")
         .select("id, email, senha")
-        .eq("email", email)
+        .ilike("email", email)
+        .limit(1)
         .maybeSingle();
 
     if (error) {
@@ -94,12 +97,23 @@ export async function POST(request: Request) {
         );
     }
 
-    const isValidPassword = await compare(password, admin.senha);
+    const storedPassword = typeof admin.senha === "string" ? admin.senha.trim() : "";
+    const isLegacyPassword = !isBcryptHash(storedPassword);
+    const isValidPassword = await verifyPassword(password, storedPassword);
     if (!isValidPassword) {
         return NextResponse.json(
             { error: "Credenciais inválidas." },
             { status: 401 }
         );
+    }
+
+    // One-time migration: if an old plaintext password is found and valid, upgrade to bcrypt.
+    if (isLegacyPassword) {
+        const upgradedHash = await hashPassword(password);
+        await supabase
+            .from("admins")
+            .update({ senha: upgradedHash })
+            .eq("id", admin.id);
     }
 
     const token = await createAdminSession({
