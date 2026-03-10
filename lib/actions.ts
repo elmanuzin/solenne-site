@@ -24,13 +24,13 @@ export async function registerAction(formData: FormData) {
         return { error: "Preencha todos os campos obrigatórios." };
     }
 
-    const existing = getUserByEmail(email);
+    const existing = await getUserByEmail(email);
     if (existing) {
         return { error: "Este e-mail já está cadastrado." };
     }
 
     const password_hash = await hashPassword(password);
-    const user = createUser({
+    const user = await createUser({
         name,
         email: email.toLowerCase(),
         whatsapp: whatsapp || "",
@@ -59,7 +59,7 @@ export async function loginAction(formData: FormData) {
         return { error: "Preencha todos os campos." };
     }
 
-    const user = getUserByEmail(email.toLowerCase());
+    const user = await getUserByEmail(email.toLowerCase());
 
     if (!user) {
         return { error: "E-mail ou senha inválidos." };
@@ -96,12 +96,12 @@ export async function redeemRewardAction(rewardName: string) {
         return { error: "Sessão expirada. Faça login novamente." };
     }
 
-    const user = getUserById(session.userId);
+    const user = await getUserById(session.userId);
     if (!user) {
         return { error: "Usuário não encontrado." };
     }
 
-    const result = redeemReward(session.userId, rewardName);
+    const result = await redeemReward(session.userId, rewardName);
     return {
         success: result.success,
         message: result.message,

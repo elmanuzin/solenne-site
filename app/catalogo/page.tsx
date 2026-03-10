@@ -4,8 +4,8 @@ import { listCatalogProducts } from "@/lib/catalog";
 
 export const dynamic = "force-dynamic";
 
-export default function CatalogoPage() {
-    const products = listCatalogProducts();
+export default async function CatalogoPage() {
+    const products = await listCatalogProducts();
 
     return (
         <Suspense

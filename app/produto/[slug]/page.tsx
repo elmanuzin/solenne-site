@@ -15,15 +15,15 @@ export default async function ProductPage({
     params: Promise<{ slug: string }>;
 }) {
     const { slug } = await params;
-    const product = getCatalogProductBySlug(slug);
+    const product = await getCatalogProductBySlug(slug);
 
     if (!product) {
         notFound();
     }
 
     const category = getCategoryBySlug(product.category);
-    const suggested = getSuggestedProducts(slug);
-    const colorVariants = listCatalogProducts({ includeUnavailable: true })
+    const suggested = await getSuggestedProducts(slug);
+    const colorVariants = (await listCatalogProducts({ includeUnavailable: true }))
         .filter(
             (item) =>
                 item.name === product.name &&

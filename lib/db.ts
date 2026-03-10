@@ -1,8 +1,7 @@
 import "server-only";
 
-import fs from "node:fs";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import type { CategorySlug, SizeOption } from "@/types";
 
 export interface DBUser {
@@ -77,16 +76,59 @@ export interface UpdateProductInput {
     available?: boolean;
 }
 
-interface DBState {
-    users: DBUser[];
-    orders: DBOrder[];
-    products: DBProduct[];
+interface ProdutoRow {
+    id: string;
+    nome: string;
+    categoria: string;
+    cor: string;
+    preco: number;
+    descricao: string | null;
+    estoque: number | null;
+    imagem: string | null;
+    disponivel: boolean | null;
+    destaque: boolean | null;
+    lancamento: boolean | null;
+    created_at: string | null;
 }
 
-const STORE_DIR = path.join(process.cwd(), "data");
-const STORE_FILE = path.join(STORE_DIR, "store.json");
+interface ProdutoTamanhoRow {
+    produto_id: string;
+    tamanho: string;
+}
 
-const CATEGORY_FALLBACK: CategorySlug[] = [
+interface ClienteRow {
+    id: string;
+    nome: string;
+    email: string;
+    created_at: string | null;
+    senha?: string | null;
+    whatsapp?: string | null;
+}
+
+interface FidelidadeRow {
+    id: string;
+    cliente_id: string;
+    selos: number | null;
+    indicacoes: number | null;
+}
+
+interface AdminRow {
+    id: string;
+    email: string;
+    senha: string;
+    created_at: string | null;
+}
+
+interface PedidoRow {
+    id: string;
+    cliente_id: string | null;
+    produto_id: string | null;
+    tamanho: string | null;
+    status: string | null;
+    created_at: string | null;
+}
+
+const CATEGORY_ALLOWED: CategorySlug[] = [
     "conjuntos",
     "body",
     "vestidos",
@@ -95,15 +137,9 @@ const CATEGORY_FALLBACK: CategorySlug[] = [
     "shorts",
 ];
 
-let stateCache: DBState | null = null;
-
-function createEmptyState(): DBState {
-    return {
-        users: [],
-        orders: [],
-        products: [],
-    };
-}
+const passwordByEmailMemory = new Map<string, string>();
+const passwordByIdMemory = new Map<string, string>();
+const ordersByUserMemory = new Map<string, DBOrder[]>();
 
 function slugify(value: string): string {
     return value
@@ -116,6 +152,11 @@ function slugify(value: string): string {
         .replace(/-+/g, "-");
 }
 
+function clampStampValue(value: number): number {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(10, Math.trunc(value)));
+}
+
 function toTitleCase(value: string): string {
     return value
         .split(" ")
@@ -124,30 +165,11 @@ function toTitleCase(value: string): string {
         .join(" ");
 }
 
-function clampStampValue(value: number): number {
-    if (!Number.isFinite(value)) return 0;
-    return Math.max(0, Math.min(10, Math.trunc(value)));
-}
-
 function sanitizeCategory(value: string): CategorySlug {
     const normalized = value.toLowerCase().trim();
-
-    const aliases: Record<string, CategorySlug> = {
-        conjunto: "conjuntos",
-        conjuntos: "conjuntos",
-        body: "body",
-        vestido: "vestidos",
-        vestidos: "vestidos",
-        saia: "saias",
-        saias: "saias",
-        cropped: "croppeds",
-        croppeds: "croppeds",
-        short: "shorts",
-        shorts: "shorts",
-    };
-
-    const mapped = aliases[normalized] || (normalized as CategorySlug);
-    return CATEGORY_FALLBACK.includes(mapped) ? mapped : "vestidos";
+    return CATEGORY_ALLOWED.includes(normalized as CategorySlug)
+        ? (normalized as CategorySlug)
+        : "vestidos";
 }
 
 function sanitizeSizes(sizes: unknown): SizeOption[] {
@@ -158,439 +180,647 @@ function sanitizeSizes(sizes: unknown): SizeOption[] {
         .map((size) => String(size) as SizeOption)
         .filter((size) => allowed.has(size));
 
-    return normalized.length ? normalized : ["P", "M", "G"];
+    return normalized.length ? Array.from(new Set(normalized)) : ["P", "M", "G"];
 }
 
-function ensureUniqueSlug(candidate: string, productIdToIgnore?: string): string {
-    const state = getState();
-    const base = slugify(candidate) || `produto-${Date.now()}`;
-    let current = base;
-    let suffix = 2;
-
-    while (
-        state.products.some(
-            (product) => product.slug === current && product.id !== productIdToIgnore
-        )
-    ) {
-        current = `${base}-${suffix}`;
-        suffix += 1;
+function sizeFromDb(value: string): SizeOption {
+    const normalized = value.toUpperCase().trim();
+    if (normalized === "UNICO") return "Único";
+    if (normalized === "P" || normalized === "M" || normalized === "G" || normalized === "GG") {
+        return normalized;
     }
-
-    return current;
+    return "P";
 }
 
-function normalizeState(input: unknown): DBState {
-    if (!input || typeof input !== "object") {
-        return createEmptyState();
+function sizeToDb(value: SizeOption): "P" | "M" | "G" | "GG" | "UNICO" {
+    if (value === "Único") return "UNICO";
+    return value;
+}
+
+function nowIso(): string {
+    return new Date().toISOString();
+}
+
+async function listSizesByProductIds(ids: string[]): Promise<Record<string, SizeOption[]>> {
+    if (!ids.length) return {};
+
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+        .from("produto_tamanhos")
+        .select("produto_id, tamanho")
+        .in("produto_id", ids);
+
+    if (error) {
+        throw new Error("Falha ao carregar tamanhos de produto.");
     }
 
-    const raw = input as Partial<DBState>;
-    const now = new Date().toISOString();
-
-    const users = Array.isArray(raw.users)
-        ? raw.users
-            .map((user) => {
-                if (!user || typeof user !== "object") return null;
-                const current = user as Partial<DBUser>;
-                const email = String(current.email || "").toLowerCase().trim();
-                const passwordHash = String(current.password_hash || "").trim();
-                if (!email || !passwordHash) return null;
-
-                return {
-                    id: current.id || randomUUID(),
-                    name: String(current.name || "Cliente"),
-                    email,
-                    whatsapp: String(current.whatsapp || ""),
-                    password_hash: passwordHash,
-                    role: current.role === "admin" ? "admin" : "customer",
-                    stamps: clampStampValue(Number(current.stamps ?? 0)),
-                    referralStamps: clampStampValue(Number(current.referralStamps ?? 0)),
-                    created_at: current.created_at || now,
-                } satisfies DBUser;
-            })
-            .filter((user): user is DBUser => !!user && !!user.email)
-        : [];
-
-    const orders = Array.isArray(raw.orders)
-        ? raw.orders
-            .map((order) => {
-                if (!order || typeof order !== "object") return null;
-                const current = order as Partial<DBOrder>;
-                if (!current.user_id) return null;
-                return {
-                    id: current.id || randomUUID(),
-                    user_id: String(current.user_id),
-                    product_name: String(current.product_name || "Produto"),
-                    size: String(current.size || "Único"),
-                    price: Number(current.price ?? 0),
-                    created_at: current.created_at || now,
-                    generates_stamp: Boolean(current.generates_stamp),
-                } satisfies DBOrder;
-            })
-            .filter((order): order is DBOrder => !!order)
-        : [];
-
-    const products = Array.isArray(raw.products)
-        ? raw.products
-            .map((product) => {
-                if (!product || typeof product !== "object") return null;
-                const current = product as Partial<DBProduct>;
-                const name = String(current.name || "Produto sem nome");
-                const color = String(current.color || "Sem Cor");
-                const id = current.id || randomUUID();
-                return {
-                    id,
-                    slug:
-                        current.slug ||
-                        slugify(`${name} ${color}`) ||
-                        `produto-${id.slice(0, 8)}`,
-                    name,
-                    category: sanitizeCategory(String(current.category || "vestidos")),
-                    color,
-                    price: Number(current.price ?? 0),
-                    stock: Math.max(0, Math.trunc(Number(current.stock ?? 0))),
-                    description: String(current.description || "Sem descrição disponível."),
-                    sizes: sanitizeSizes(current.sizes),
-                    image: String(current.image || ""),
-                    featured: Boolean(current.featured),
-                    newArrival: Boolean(current.newArrival),
-                    isLancamento: Boolean(current.isLancamento),
-                    available:
-                        typeof current.available === "boolean"
-                            ? current.available
-                            : Math.max(0, Math.trunc(Number(current.stock ?? 0))) > 0,
-                    created_at: current.created_at || now,
-                    updated_at: current.updated_at || now,
-                } satisfies DBProduct;
-            })
-            .filter((product): product is DBProduct => !!product)
-        : [];
-
-    const usedSlugs = new Set<string>();
-    const normalizedProducts = products.map((product) => {
-        let slug = product.slug || slugify(`${product.name} ${product.color}`);
-        if (usedSlugs.has(slug)) {
-            let suffix = 2;
-            while (usedSlugs.has(`${slug}-${suffix}`)) {
-                suffix += 1;
-            }
-            slug = `${slug}-${suffix}`;
-        }
-        usedSlugs.add(slug);
-        return {
-            ...product,
-            slug,
-        };
+    const byProduct: Record<string, SizeOption[]> = {};
+    (data as ProdutoTamanhoRow[]).forEach((row) => {
+        if (!byProduct[row.produto_id]) byProduct[row.produto_id] = [];
+        byProduct[row.produto_id].push(sizeFromDb(row.tamanho));
     });
 
+    return byProduct;
+}
+
+function mapProductRow(row: ProdutoRow, sizesByProductId: Record<string, SizeOption[]>): DBProduct {
     return {
-        users,
-        orders,
-        products: normalizedProducts,
+        id: row.id,
+        slug: slugify(`${row.nome} ${row.cor}`) || row.id,
+        name: row.nome,
+        category: sanitizeCategory(row.categoria),
+        color: row.cor,
+        price: Number(row.preco || 0),
+        stock: Math.max(0, Math.trunc(Number(row.estoque || 0))),
+        description: row.descricao || "",
+        sizes: sizesByProductId[row.id] || ["P", "M", "G"],
+        image: row.imagem || "",
+        featured: Boolean(row.destaque),
+        newArrival: Boolean(row.lancamento),
+        isLancamento: Boolean(row.lancamento),
+        available: Boolean(row.disponivel),
+        created_at: row.created_at || nowIso(),
+        updated_at: row.created_at || nowIso(),
     };
 }
 
-function persistState(state: DBState): void {
-    fs.mkdirSync(STORE_DIR, { recursive: true });
-    fs.writeFileSync(STORE_FILE, JSON.stringify(state, null, 2), "utf8");
-}
+async function upsertLoyaltyIfMissing(userId: string) {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+        .from("fidelidade")
+        .select("id")
+        .eq("cliente_id", userId)
+        .maybeSingle();
 
-function readStateFromDisk(): DBState {
-    if (!fs.existsSync(STORE_FILE)) {
-        const empty = createEmptyState();
-        persistState(empty);
-        return empty;
+    if (error) {
+        throw new Error("Falha ao verificar fidelidade do cliente.");
     }
 
-    try {
-        const content = fs.readFileSync(STORE_FILE, "utf8");
-        const parsed = JSON.parse(content);
-        const normalized = normalizeState(parsed);
-        persistState(normalized);
-        return normalized;
-    } catch {
-        const empty = createEmptyState();
-        persistState(empty);
-        return empty;
+    if (data) return;
+
+    const { error: insertError } = await supabase.from("fidelidade").insert({
+        cliente_id: userId,
+        selos: 0,
+        indicacoes: 0,
+    });
+
+    if (insertError) {
+        throw new Error("Falha ao inicializar fidelidade do cliente.");
     }
 }
 
-function getState(): DBState {
-    if (!stateCache) {
-        stateCache = readStateFromDisk();
+async function getLoyaltyByUserId(userId: string): Promise<FidelidadeRow | null> {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+        .from("fidelidade")
+        .select("id, cliente_id, selos, indicacoes")
+        .eq("cliente_id", userId)
+        .maybeSingle();
+
+    if (error) {
+        throw new Error("Falha ao carregar fidelidade do cliente.");
     }
-    return stateCache;
+
+    return (data as FidelidadeRow | null) ?? null;
 }
 
-function mutateState(mutator: (state: DBState) => void): void {
-    const state = getState();
-    mutator(state);
-    persistState(state);
+function mapClienteToUser(cliente: ClienteRow, fidelidade?: FidelidadeRow | null): DBUser {
+    const email = cliente.email.toLowerCase();
+    const password =
+        (typeof cliente.senha === "string" && cliente.senha) ||
+        passwordByEmailMemory.get(email) ||
+        passwordByIdMemory.get(cliente.id) ||
+        "";
+
+    if (password) {
+        passwordByEmailMemory.set(email, password);
+        passwordByIdMemory.set(cliente.id, password);
+    }
+
+    return {
+        id: cliente.id,
+        name: cliente.nome,
+        email,
+        whatsapp: typeof cliente.whatsapp === "string" ? cliente.whatsapp : "",
+        password_hash: password,
+        role: "customer",
+        stamps: clampStampValue(Number(fidelidade?.selos ?? 0)),
+        referralStamps: clampStampValue(Number(fidelidade?.indicacoes ?? 0)),
+        created_at: cliente.created_at || nowIso(),
+    };
+}
+
+function fallbackOrderFromInput(input: Omit<DBOrder, "id" | "created_at">): DBOrder {
+    return {
+        id: randomUUID(),
+        user_id: input.user_id,
+        product_name: input.product_name,
+        size: input.size || "Único",
+        price: Number(input.price || 0),
+        created_at: nowIso(),
+        generates_stamp: Boolean(input.generates_stamp),
+    };
+}
+
+function rememberFallbackOrder(order: DBOrder) {
+    const list = ordersByUserMemory.get(order.user_id) || [];
+    list.unshift(order);
+    ordersByUserMemory.set(order.user_id, list);
 }
 
 // ─── USER OPERATIONS ──────────────────────────────────
 
-export function createUser(
+export async function createUser(
     data: Omit<DBUser, "id" | "created_at" | "stamps" | "role" | "referralStamps"> & {
         role?: "admin" | "customer";
     }
-): DBUser {
-    const user: DBUser = {
-        id: randomUUID(),
-        name: data.name,
-        email: data.email.toLowerCase(),
-        whatsapp: data.whatsapp,
-        password_hash: data.password_hash,
-        role: data.role || "customer",
-        stamps: 0,
-        referralStamps: 0,
-        created_at: new Date().toISOString(),
+): Promise<DBUser> {
+    const supabase = createSupabaseAdminClient();
+    const payload = {
+        nome: data.name.trim(),
+        email: data.email.toLowerCase().trim(),
     };
 
-    mutateState((draft) => {
-        draft.users.push(user);
+    const { data: created, error } = await supabase
+        .from("clientes")
+        .insert(payload)
+        .select("id, nome, email, created_at")
+        .single();
+
+    if (error) {
+        throw new Error("Falha ao criar cliente.");
+    }
+
+    const user = mapClienteToUser(created as ClienteRow, {
+        id: "",
+        cliente_id: created.id,
+        selos: 0,
+        indicacoes: 0,
     });
 
-    return { ...user };
+    passwordByEmailMemory.set(user.email, data.password_hash);
+    passwordByIdMemory.set(user.id, data.password_hash);
+
+    await upsertLoyaltyIfMissing(user.id);
+
+    return {
+        ...user,
+        password_hash: data.password_hash,
+        role: data.role === "admin" ? "admin" : "customer",
+    };
 }
 
-export function getUserById(id: string): DBUser | null {
-    const user = getState().users.find((entry) => entry.id === id);
-    return user ? { ...user } : null;
+export async function getUserById(id: string): Promise<DBUser | null> {
+    const supabase = createSupabaseAdminClient();
+    const { data: cliente, error } = await supabase
+        .from("clientes")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
+    if (error) {
+        throw new Error("Falha ao carregar cliente.");
+    }
+    if (!cliente) return null;
+
+    const fidelidade = await getLoyaltyByUserId(id);
+    return mapClienteToUser(cliente as ClienteRow, fidelidade);
 }
 
-export function getUserByEmail(email: string): DBUser | null {
-    const normalized = email.toLowerCase();
-    const user = getState().users.find((entry) => entry.email.toLowerCase() === normalized);
-    return user ? { ...user } : null;
+export async function getUserByEmail(email: string): Promise<DBUser | null> {
+    const supabase = createSupabaseAdminClient();
+    const normalized = email.toLowerCase().trim();
+    const { data: cliente, error } = await supabase
+        .from("clientes")
+        .select("*")
+        .eq("email", normalized)
+        .maybeSingle();
+
+    if (error) {
+        throw new Error("Falha ao carregar cliente.");
+    }
+    if (!cliente) return null;
+
+    const fidelidade = await getLoyaltyByUserId(cliente.id);
+    return mapClienteToUser(cliente as ClienteRow, fidelidade);
 }
 
-export function updateUser(
+export async function updateUser(
     id: string,
     data: Partial<Omit<DBUser, "id" | "created_at">>
-): DBUser | null {
-    const state = getState();
-    const index = state.users.findIndex((entry) => entry.id === id);
-    if (index === -1) return null;
+): Promise<DBUser | null> {
+    const current = await getUserById(id);
+    if (!current) return null;
 
-    const current = state.users[index];
-    const updated: DBUser = {
-        ...current,
-        ...data,
-        email: data.email ? data.email.toLowerCase() : current.email,
-        stamps:
+    const supabase = createSupabaseAdminClient();
+    const payload: Record<string, string> = {};
+    if (data.name !== undefined) payload.nome = data.name.trim();
+    if (data.email !== undefined) payload.email = data.email.toLowerCase().trim();
+
+    if (Object.keys(payload).length > 0) {
+        const { error } = await supabase.from("clientes").update(payload).eq("id", id);
+        if (error) {
+            throw new Error("Falha ao atualizar cliente.");
+        }
+    }
+
+    if (typeof data.stamps === "number" || typeof data.referralStamps === "number") {
+        const fidelidade = await getLoyaltyByUserId(id);
+        const nextSelos =
             typeof data.stamps === "number"
                 ? clampStampValue(data.stamps)
-                : current.stamps,
-        referralStamps:
+                : clampStampValue(Number(fidelidade?.selos ?? 0));
+        const nextIndicacoes =
             typeof data.referralStamps === "number"
                 ? clampStampValue(data.referralStamps)
-                : current.referralStamps,
-    };
+                : clampStampValue(Number(fidelidade?.indicacoes ?? 0));
 
-    mutateState((draft) => {
-        const draftIndex = draft.users.findIndex((entry) => entry.id === id);
-        if (draftIndex !== -1) {
-            draft.users[draftIndex] = updated;
+        if (!fidelidade) {
+            const { error } = await supabase.from("fidelidade").insert({
+                cliente_id: id,
+                selos: nextSelos,
+                indicacoes: nextIndicacoes,
+            });
+            if (error) {
+                throw new Error("Falha ao atualizar fidelidade.");
+            }
+        } else {
+            const { error } = await supabase
+                .from("fidelidade")
+                .update({ selos: nextSelos, indicacoes: nextIndicacoes })
+                .eq("id", fidelidade.id);
+            if (error) {
+                throw new Error("Falha ao atualizar fidelidade.");
+            }
         }
-    });
+    }
 
-    return { ...updated };
+    if (typeof data.password_hash === "string" && data.password_hash) {
+        const nextEmail = data.email?.toLowerCase().trim() || current.email;
+        passwordByEmailMemory.set(nextEmail, data.password_hash);
+        passwordByIdMemory.set(id, data.password_hash);
+    }
+
+    const updated = await getUserById(id);
+    return updated;
 }
 
-export function updateStamps(id: string, stamps: number): DBUser | null {
+export async function updateStamps(id: string, stamps: number): Promise<DBUser | null> {
     return updateUser(id, { stamps: clampStampValue(stamps) });
 }
 
-export function updateReferralStamps(id: string, stamps: number): DBUser | null {
+export async function updateReferralStamps(id: string, stamps: number): Promise<DBUser | null> {
     return updateUser(id, { referralStamps: clampStampValue(stamps) });
 }
 
-export function updateUserPassword(id: string, passwordHash: string): DBUser | null {
+export async function updateUserPassword(
+    id: string,
+    passwordHash: string
+): Promise<DBUser | null> {
     return updateUser(id, { password_hash: passwordHash });
 }
 
-export function getAllUsers(): DBUser[] {
-    return getState().users.map((user) => ({ ...user }));
+export async function getAllUsers(): Promise<DBUser[]> {
+    const supabase = createSupabaseAdminClient();
+    const [{ data: clientes, error: clientesError }, { data: fidelidades, error: fidelidadeError }] =
+        await Promise.all([
+            supabase.from("clientes").select("*").order("created_at", { ascending: false }),
+            supabase.from("fidelidade").select("id, cliente_id, selos, indicacoes"),
+        ]);
+
+    if (clientesError) throw new Error("Falha ao carregar clientes.");
+    if (fidelidadeError) throw new Error("Falha ao carregar fidelidade.");
+
+    const fidelidadeByCliente = new Map<string, FidelidadeRow>();
+    (fidelidades as FidelidadeRow[]).forEach((item) => {
+        fidelidadeByCliente.set(item.cliente_id, item);
+    });
+
+    return (clientes as ClienteRow[]).map((cliente) =>
+        mapClienteToUser(cliente, fidelidadeByCliente.get(cliente.id) || null)
+    );
 }
 
-export function getCustomers(): DBUser[] {
-    return getState()
-        .users.filter((user) => user.role === "customer")
-        .map((user) => ({ ...user }));
+export async function getCustomers(): Promise<DBUser[]> {
+    return getAllUsers();
 }
 
-export function getAdminUser(): DBUser | null {
-    const admin = getState().users.find((user) => user.role === "admin");
-    return admin ? { ...admin } : null;
+export async function getAdminUser(): Promise<DBUser | null> {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+        .from("admins")
+        .select("id, email, senha, created_at")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        throw new Error("Falha ao carregar administrador.");
+    }
+    if (!data) return null;
+
+    const admin = data as AdminRow;
+    return {
+        id: admin.id,
+        name: "Administrador",
+        email: admin.email,
+        whatsapp: "",
+        password_hash: admin.senha,
+        role: "admin",
+        stamps: 0,
+        referralStamps: 0,
+        created_at: admin.created_at || nowIso(),
+    };
 }
 
 // ─── ORDER OPERATIONS ─────────────────────────────────
 
-export function createOrder(data: Omit<DBOrder, "id" | "created_at">): DBOrder {
-    const order: DBOrder = {
-        ...data,
-        id: randomUUID(),
-        created_at: new Date().toISOString(),
+export async function createOrder(data: Omit<DBOrder, "id" | "created_at">): Promise<DBOrder> {
+    const supabase = createSupabaseAdminClient();
+
+    let productId: string | null = null;
+    if (data.product_name && !data.product_name.startsWith("[RESGATE]")) {
+        const { data: product } = await supabase
+            .from("produtos")
+            .select("id")
+            .eq("nome", data.product_name)
+            .limit(1)
+            .maybeSingle();
+        productId = product?.id || null;
+    }
+
+    const payload = {
+        cliente_id: data.user_id,
+        produto_id: productId,
+        tamanho: data.size || "Único",
+        status: data.generates_stamp ? "confirmado" : "resgatado",
     };
 
-    mutateState((draft) => {
-        draft.orders.push(order);
+    const { data: created, error } = await supabase
+        .from("pedidos")
+        .insert(payload)
+        .select("id, cliente_id, produto_id, tamanho, status, created_at")
+        .maybeSingle();
+
+    if (error || !created) {
+        const fallback = fallbackOrderFromInput(data);
+        rememberFallbackOrder(fallback);
+        return fallback;
+    }
+
+    return {
+        id: created.id,
+        user_id: created.cliente_id || data.user_id,
+        product_name: data.product_name,
+        size: created.tamanho || data.size || "Único",
+        price: Number(data.price || 0),
+        created_at: created.created_at || nowIso(),
+        generates_stamp: data.generates_stamp,
+    };
+}
+
+export async function getOrdersByUserId(userId: string): Promise<DBOrder[]> {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+        .from("pedidos")
+        .select("id, cliente_id, produto_id, tamanho, status, created_at")
+        .eq("cliente_id", userId)
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        throw new Error("Falha ao carregar pedidos do cliente.");
+    }
+
+    const pedidos = (data || []) as PedidoRow[];
+    const productIds = Array.from(
+        new Set(pedidos.map((item) => item.produto_id).filter(Boolean) as string[])
+    );
+
+    const productById = new Map<string, { nome: string; preco: number }>();
+    if (productIds.length) {
+        const { data: products, error: productsError } = await supabase
+            .from("produtos")
+            .select("id, nome, preco")
+            .in("id", productIds);
+
+        if (productsError) {
+            throw new Error("Falha ao carregar produtos dos pedidos.");
+        }
+
+        (products || []).forEach((product) => {
+            productById.set(product.id, {
+                nome: product.nome,
+                preco: Number(product.preco || 0),
+            });
+        });
+    }
+
+    const mapped = pedidos.map((order) => {
+        const product = order.produto_id ? productById.get(order.produto_id) : null;
+        const isRedeem = order.status?.toLowerCase() === "resgatado";
+
+        return {
+            id: order.id,
+            user_id: order.cliente_id || userId,
+            product_name: product?.nome || (isRedeem ? "[RESGATE] Brinde Clube" : "Pedido Solenne"),
+            size: order.tamanho || "Único",
+            price: product?.preco || 0,
+            created_at: order.created_at || nowIso(),
+            generates_stamp: !isRedeem,
+        } satisfies DBOrder;
     });
 
-    return { ...order };
+    const fallback = ordersByUserMemory.get(userId) || [];
+    return [...mapped, ...fallback].sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
-export function getOrdersByUserId(userId: string): DBOrder[] {
-    return getState()
-        .orders
-        .filter((order) => order.user_id === userId)
-        .sort(
-            (a, b) =>
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )
-        .map((order) => ({ ...order }));
-}
+export async function getAllOrders(): Promise<DBOrder[]> {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+        .from("pedidos")
+        .select("id, cliente_id, produto_id, tamanho, status, created_at")
+        .order("created_at", { ascending: false });
 
-export function getAllOrders(): DBOrder[] {
-    return getState().orders.map((order) => ({ ...order }));
+    if (error) {
+        throw new Error("Falha ao carregar pedidos.");
+    }
+
+    const pedidos = (data || []) as PedidoRow[];
+    const orders = await Promise.all(
+        pedidos
+            .filter((order) => Boolean(order.cliente_id))
+            .map((order) => getOrdersByUserId(order.cliente_id as string))
+    );
+
+    return orders.flat();
 }
 
 // ─── PRODUCT OPERATIONS ───────────────────────────────
 
-export function getAllProducts(): DBProduct[] {
-    return getState()
-        .products
-        .slice()
-        .sort((a, b) => b.created_at.localeCompare(a.created_at))
-        .map((product) => ({ ...product, sizes: [...product.sizes] }));
+export async function getAllProducts(): Promise<DBProduct[]> {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+        .from("produtos")
+        .select(
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+        )
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        throw new Error("Falha ao carregar produtos.");
+    }
+
+    const rows = (data || []) as ProdutoRow[];
+    const sizesByProductId = await listSizesByProductIds(rows.map((row) => row.id));
+    return rows.map((row) => mapProductRow(row, sizesByProductId));
 }
 
-export function getProductById(id: string): DBProduct | null {
-    const product = getState().products.find((entry) => entry.id === id);
-    return product ? { ...product, sizes: [...product.sizes] } : null;
+export async function getProductById(id: string): Promise<DBProduct | null> {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+        .from("produtos")
+        .select(
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+        )
+        .eq("id", id)
+        .maybeSingle();
+
+    if (error) {
+        throw new Error("Falha ao carregar produto.");
+    }
+    if (!data) return null;
+
+    const sizesByProductId = await listSizesByProductIds([id]);
+    return mapProductRow(data as ProdutoRow, sizesByProductId);
 }
 
-export function getProductBySlug(slug: string): DBProduct | null {
-    const product = getState().products.find((entry) => entry.slug === slug);
-    return product ? { ...product, sizes: [...product.sizes] } : null;
+export async function getProductBySlug(slug: string): Promise<DBProduct | null> {
+    const products = await getAllProducts();
+    return products.find((entry) => entry.slug === slug) || null;
 }
 
-export function createProduct(input: CreateProductInput): DBProduct {
-    const now = new Date().toISOString();
-    const product: DBProduct = {
-        id: randomUUID(),
-        slug: ensureUniqueSlug(`${input.name} ${input.color}`),
-        name: input.name.trim(),
-        category: sanitizeCategory(input.category),
-        color: toTitleCase(input.color.trim()),
-        price: Number(input.price),
-        stock: Math.max(0, Math.trunc(input.stock)),
-        description: input.description.trim(),
-        sizes: sanitizeSizes(input.sizes),
-        image: input.image || "",
-        featured: Boolean(input.featured),
-        newArrival: Boolean(input.newArrival),
-        isLancamento: Boolean(input.isLancamento),
-        available:
+export async function createProduct(input: CreateProductInput): Promise<DBProduct> {
+    const supabase = createSupabaseAdminClient();
+    const payload = {
+        nome: input.name.trim(),
+        categoria: sanitizeCategory(input.category),
+        cor: toTitleCase(input.color.trim()),
+        preco: Number(input.price || 0),
+        estoque: Math.max(0, Math.trunc(Number(input.stock || 0))),
+        descricao: input.description.trim(),
+        imagem: input.image || null,
+        destaque: Boolean(input.featured),
+        lancamento: Boolean(input.newArrival || input.isLancamento),
+        disponivel:
             typeof input.available === "boolean"
                 ? input.available
-                : Math.max(0, Math.trunc(input.stock)) > 0,
-        created_at: now,
-        updated_at: now,
+                : Math.max(0, Math.trunc(Number(input.stock || 0))) > 0,
     };
 
-    mutateState((draft) => {
-        draft.products.push(product);
-    });
+    const { data, error } = await supabase
+        .from("produtos")
+        .insert(payload)
+        .select(
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+        )
+        .single();
 
-    return { ...product, sizes: [...product.sizes] };
+    if (error) {
+        throw new Error("Falha ao criar produto.");
+    }
+
+    const sizes = sanitizeSizes(input.sizes);
+    const { error: sizeError } = await supabase.from("produto_tamanhos").insert(
+        sizes.map((size) => ({
+            produto_id: data.id,
+            tamanho: sizeToDb(size),
+        }))
+    );
+
+    if (sizeError) {
+        throw new Error("Falha ao salvar tamanhos do produto.");
+    }
+
+    const sizesByProductId = await listSizesByProductIds([data.id]);
+    return mapProductRow(data as ProdutoRow, sizesByProductId);
 }
 
-export function updateProduct(id: string, input: UpdateProductInput): DBProduct | null {
-    const state = getState();
-    const existing = state.products.find((entry) => entry.id === id);
-    if (!existing) return null;
+export async function updateProduct(
+    id: string,
+    input: UpdateProductInput
+): Promise<DBProduct | null> {
+    const current = await getProductById(id);
+    if (!current) return null;
 
-    const nextName = input.name?.trim() || existing.name;
-    const nextColor = input.color?.trim() || existing.color;
-    const nextSlug =
-        input.slug !== undefined
-            ? ensureUniqueSlug(input.slug || `${nextName} ${nextColor}`, id)
-            : input.name || input.color
-                ? ensureUniqueSlug(`${nextName} ${nextColor}`, id)
-                : existing.slug;
+    const supabase = createSupabaseAdminClient();
+    const payload: Record<string, unknown> = {};
+    if (input.name !== undefined) payload.nome = input.name.trim();
+    if (input.category !== undefined) payload.categoria = sanitizeCategory(input.category);
+    if (input.color !== undefined) payload.cor = toTitleCase(input.color.trim());
+    if (input.price !== undefined) payload.preco = Number(input.price || 0);
+    if (input.stock !== undefined) payload.estoque = Math.max(0, Math.trunc(input.stock));
+    if (input.description !== undefined) payload.descricao = input.description.trim();
+    if (input.image !== undefined) payload.imagem = input.image || null;
+    if (input.featured !== undefined) payload.destaque = Boolean(input.featured);
+    if (input.newArrival !== undefined || input.isLancamento !== undefined) {
+        payload.lancamento = Boolean(input.newArrival ?? input.isLancamento);
+    }
+    if (input.available !== undefined) payload.disponivel = Boolean(input.available);
 
-    const updated: DBProduct = {
-        ...existing,
-        name: nextName,
-        slug: nextSlug,
-        category:
-            input.category !== undefined
-                ? sanitizeCategory(input.category)
-                : existing.category,
-        color: toTitleCase(nextColor),
-        price:
-            input.price !== undefined
-                ? Number(input.price)
-                : existing.price,
-        stock:
-            input.stock !== undefined
-                ? Math.max(0, Math.trunc(input.stock))
-                : existing.stock,
-        description:
-            input.description !== undefined
-                ? input.description.trim()
-                : existing.description,
-        sizes:
-            input.sizes !== undefined
-                ? sanitizeSizes(input.sizes)
-                : existing.sizes,
-        image:
-            input.image !== undefined
-                ? input.image
-                : existing.image,
-        featured:
-            input.featured !== undefined
-                ? Boolean(input.featured)
-                : existing.featured,
-        newArrival:
-            input.newArrival !== undefined
-                ? Boolean(input.newArrival)
-                : existing.newArrival,
-        isLancamento:
-            input.isLancamento !== undefined
-                ? Boolean(input.isLancamento)
-                : existing.isLancamento,
-        available:
-            input.available !== undefined
-                ? Boolean(input.available)
-                : existing.available,
-        updated_at: new Date().toISOString(),
-    };
-
-    mutateState((draft) => {
-        const index = draft.products.findIndex((entry) => entry.id === id);
-        if (index !== -1) {
-            draft.products[index] = updated;
+    if (Object.keys(payload).length > 0) {
+        const { error } = await supabase.from("produtos").update(payload).eq("id", id);
+        if (error) {
+            throw new Error("Falha ao atualizar produto.");
         }
-    });
+    }
 
-    return { ...updated, sizes: [...updated.sizes] };
+    if (input.sizes !== undefined) {
+        const { error: deleteError } = await supabase
+            .from("produto_tamanhos")
+            .delete()
+            .eq("produto_id", id);
+        if (deleteError) {
+            throw new Error("Falha ao atualizar tamanhos do produto.");
+        }
+
+        const sizes = sanitizeSizes(input.sizes);
+        if (sizes.length) {
+            const { error: insertError } = await supabase.from("produto_tamanhos").insert(
+                sizes.map((size) => ({
+                    produto_id: id,
+                    tamanho: sizeToDb(size),
+                }))
+            );
+            if (insertError) {
+                throw new Error("Falha ao salvar tamanhos do produto.");
+            }
+        }
+    }
+
+    const updated = await getProductById(id);
+    return updated;
 }
 
-export function deleteProduct(id: string): boolean {
-    const state = getState();
-    const exists = state.products.some((entry) => entry.id === id);
-    if (!exists) return false;
+export async function deleteProduct(id: string): Promise<boolean> {
+    const supabase = createSupabaseAdminClient();
+    const { error: sizeError } = await supabase
+        .from("produto_tamanhos")
+        .delete()
+        .eq("produto_id", id);
+    if (sizeError) {
+        throw new Error("Falha ao remover tamanhos do produto.");
+    }
 
-    mutateState((draft) => {
-        draft.products = draft.products.filter((entry) => entry.id !== id);
-    });
-
+    const { error } = await supabase.from("produtos").delete().eq("id", id);
+    if (error) {
+        throw new Error("Falha ao remover produto.");
+    }
     return true;
 }
 
-export function updateProductStock(id: string, stock: number): DBProduct | null {
+export async function updateProductStock(
+    id: string,
+    stock: number
+): Promise<DBProduct | null> {
     return updateProduct(id, { stock: Math.max(0, stock) });
 }

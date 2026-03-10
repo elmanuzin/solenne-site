@@ -14,12 +14,12 @@ export default async function DashboardPage() {
         redirect("/clube-solenne/login");
     }
 
-    const user = getUserById(session.userId);
+    const user = await getUserById(session.userId);
     if (!user) {
         redirect("/clube-solenne/login");
     }
 
-    const orders = getOrdersByUserId(user.id);
+    const orders = await getOrdersByUserId(user.id);
 
     const userData = {
         id: user.id,

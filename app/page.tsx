@@ -7,8 +7,8 @@ import { listFeaturedProducts } from "@/lib/catalog";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
-  const featuredProducts = listFeaturedProducts(8);
+export default async function Home() {
+  const featuredProducts = await listFeaturedProducts(8);
 
   return (
     <div className="pb-20">

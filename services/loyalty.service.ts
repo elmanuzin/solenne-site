@@ -12,55 +12,55 @@ import type { DBUser } from "@/lib/db";
 const MAX_STAMPS = 10;
 
 // --- FIDELIDADE (Compras) ---
-export function addStamp(userId: string): DBUser | null {
-    const user = getUserById(userId);
+export async function addStamp(userId: string): Promise<DBUser | null> {
+    const user = await getUserById(userId);
     if (!user) return null;
     if (user.stamps >= MAX_STAMPS) return user;
     return updateStamps(userId, user.stamps + 1);
 }
 
-export function removeStamp(userId: string): DBUser | null {
-    const user = getUserById(userId);
+export async function removeStamp(userId: string): Promise<DBUser | null> {
+    const user = await getUserById(userId);
     if (!user) return null;
     if (user.stamps <= 0) return user;
     return updateStamps(userId, user.stamps - 1);
 }
 
-export function resetStamps(userId: string): DBUser | null {
+export async function resetStamps(userId: string): Promise<DBUser | null> {
     return updateStamps(userId, 0);
 }
 
 // --- INDICAÇÃO (Referrals) ---
-export function addReferralStamp(userId: string): DBUser | null {
-    const user = getUserById(userId);
+export async function addReferralStamp(userId: string): Promise<DBUser | null> {
+    const user = await getUserById(userId);
     if (!user) return null;
     if (user.referralStamps >= MAX_STAMPS) return user;
     return updateReferralStamps(userId, user.referralStamps + 1);
 }
 
-export function removeReferralStamp(userId: string): DBUser | null {
-    const user = getUserById(userId);
+export async function removeReferralStamp(userId: string): Promise<DBUser | null> {
+    const user = await getUserById(userId);
     if (!user) return null;
     if (user.referralStamps <= 0) return user;
     return updateReferralStamps(userId, user.referralStamps - 1);
 }
 
-export function resetReferralStamps(userId: string): DBUser | null {
+export async function resetReferralStamps(userId: string): Promise<DBUser | null> {
     return updateReferralStamps(userId, 0);
 }
 
-export function canRedeem(userId: string): boolean {
-    const user = getUserById(userId);
+export async function canRedeem(userId: string): Promise<boolean> {
+    const user = await getUserById(userId);
     if (!user) return false;
     // Can redeem if EITHER card is full
     return user.stamps >= MAX_STAMPS || user.referralStamps >= MAX_STAMPS;
 }
 
-export function redeemReward(
+export async function redeemReward(
     userId: string,
     rewardName: string
-): { success: boolean; user: DBUser | null; message: string } {
-    const user = getUserById(userId);
+): Promise<{ success: boolean; user: DBUser | null; message: string }> {
+    const user = await getUserById(userId);
     if (!user) {
         return { success: false, user: null, message: "Usuário não encontrado." };
     }
@@ -76,7 +76,7 @@ export function redeemReward(
         };
     }
 
-    createOrder({
+    await createOrder({
         user_id: userId,
         product_name: `[RESGATE] ${rewardName}`,
         size: "Único",
@@ -85,8 +85,8 @@ export function redeemReward(
     });
 
     const updated = canRedeemFidelidade
-        ? updateStamps(userId, 0)
-        : updateReferralStamps(userId, 0);
+        ? await updateStamps(userId, 0)
+        : await updateReferralStamps(userId, 0);
 
     return {
         success: true,
@@ -95,16 +95,27 @@ export function redeemReward(
     };
 }
 
-export function listCustomers(): (DBUser & { ordersCount: number })[] {
-    return getCustomers().map((user) => ({
+export async function listCustomers(): Promise<(DBUser & { ordersCount: number })[]> {
+    const customers = await getCustomers();
+    const counts = await Promise.all(
+        customers.map(async (user) => ({
+            id: user.id,
+            ordersCount: (await getOrdersByUserId(user.id)).length,
+        }))
+    );
+
+    const countById = new Map<string, number>();
+    counts.forEach((item) => countById.set(item.id, item.ordersCount));
+
+    return customers.map((user) => ({
         ...user,
-        ordersCount: getOrdersByUserId(user.id).length,
+        ordersCount: countById.get(user.id) || 0,
     }));
 }
 
-export function getStats() {
-    const customers = getCustomers();
-    const orders = getAllOrders();
+export async function getStats() {
+    const customers = await getCustomers();
+    const orders = await getAllOrders();
     const totalStamps = customers.reduce((sum, u) => sum + u.stamps, 0);
     const totalReferralStamps = customers.reduce((sum, u) => sum + u.referralStamps, 0);
     const totalRedemptions = orders.filter((o) =>

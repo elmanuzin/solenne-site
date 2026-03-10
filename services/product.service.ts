@@ -1,26 +1,26 @@
 import { getAllProducts, getProductById, updateProductStock } from "@/lib/db";
 import type { DBProduct } from "@/lib/db";
 
-export function listProducts(): DBProduct[] {
+export async function listProducts(): Promise<DBProduct[]> {
     return getAllProducts();
 }
 
-export function getProduct(id: string): DBProduct | null {
+export async function getProduct(id: string): Promise<DBProduct | null> {
     return getProductById(id);
 }
 
-export function increaseStock(id: string): DBProduct | null {
-    const product = getProductById(id);
+export async function increaseStock(id: string): Promise<DBProduct | null> {
+    const product = await getProductById(id);
     if (!product) return null;
     return updateProductStock(id, product.stock + 1);
 }
 
-export function decreaseStock(id: string): DBProduct | null {
-    const product = getProductById(id);
+export async function decreaseStock(id: string): Promise<DBProduct | null> {
+    const product = await getProductById(id);
     if (!product) return null;
     return updateProductStock(id, product.stock - 1);
 }
 
-export function setStock(id: string, stock: number): DBProduct | null {
+export async function setStock(id: string, stock: number): Promise<DBProduct | null> {
     return updateProductStock(id, stock);
 }

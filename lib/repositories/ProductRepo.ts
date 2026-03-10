@@ -14,21 +14,21 @@ export const ProductRepo = {
     bulkUpdateStock: async (updates: { id: string; stock: number }[]) => {
         const results = [];
         for (const update of updates) {
-            const res = updateProductStock(update.id, update.stock);
+            const res = await updateProductStock(update.id, update.stock);
             if (res) results.push(res);
         }
         return results;
     },
 
     resetAllStock: async () => {
-        const products = getAllProducts();
-        products.forEach(p => updateProductStock(p.id, 0));
+        const products = await getAllProducts();
+        await Promise.all(products.map((p) => updateProductStock(p.id, 0)));
         return true;
     },
 
     setAllStock: async (stock: number) => {
-        const products = getAllProducts();
-        products.forEach(p => updateProductStock(p.id, stock));
+        const products = await getAllProducts();
+        await Promise.all(products.map((p) => updateProductStock(p.id, stock)));
         return true;
     }
 };

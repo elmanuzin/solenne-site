@@ -26,23 +26,25 @@ function toProduct(product: DBProduct): Product {
     };
 }
 
-export function listCatalogProducts(options?: {
+export async function listCatalogProducts(options?: {
     includeUnavailable?: boolean;
-}): Product[] {
+}): Promise<Product[]> {
     const includeUnavailable = options?.includeUnavailable ?? true;
+    const allProducts = await getAllProducts();
 
-    return getAllProducts()
+    return allProducts
         .filter((product) => includeUnavailable || product.available)
         .map(toProduct);
 }
 
-export function getCatalogProductBySlug(slug: string): Product | null {
-    const product = getProductBySlug(slug);
+export async function getCatalogProductBySlug(slug: string): Promise<Product | null> {
+    const product = await getProductBySlug(slug);
     return product ? toProduct(product) : null;
 }
 
-export function listFeaturedProducts(limit = 6): Product[] {
-    const featured = getAllProducts()
+export async function listFeaturedProducts(limit = 6): Promise<Product[]> {
+    const allProducts = await getAllProducts();
+    const featured = allProducts
         .filter((product) => product.available && product.featured)
         .map(toProduct);
 
@@ -50,7 +52,7 @@ export function listFeaturedProducts(limit = 6): Product[] {
         return featured.slice(0, limit);
     }
 
-    const fallback = getAllProducts()
+    const fallback = allProducts
         .filter(
             (product) =>
                 product.available && !featured.some((item) => item.id === product.id)
@@ -61,15 +63,16 @@ export function listFeaturedProducts(limit = 6): Product[] {
     return [...featured, ...fallback];
 }
 
-export function listNewArrivals(limit = 6): Product[] {
-    return getAllProducts()
+export async function listNewArrivals(limit = 6): Promise<Product[]> {
+    const allProducts = await getAllProducts();
+    return allProducts
         .filter((product) => product.available && product.newArrival)
         .map(toProduct)
         .slice(0, limit);
 }
 
-export function getSuggestedProducts(currentSlug: string, limit = 4): Product[] {
-    const all = getAllProducts().map(toProduct);
+export async function getSuggestedProducts(currentSlug: string, limit = 4): Promise<Product[]> {
+    const all = (await getAllProducts()).map(toProduct);
     const current = all.find((product) => product.slug === currentSlug);
 
     if (!current) {
