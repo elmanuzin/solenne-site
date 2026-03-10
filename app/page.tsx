@@ -13,22 +13,24 @@ export default async function Home() {
   return (
     <div className="pb-20">
       <section
-        className="w-full min-h-[60vh] md:min-h-[80vh] relative flex items-center justify-center overflow-hidden bg-contain md:bg-cover bg-no-repeat bg-center"
+        className="w-full min-h-[50vh] md:min-h-[80vh] flex items-center justify-center overflow-hidden bg-contain md:bg-cover bg-no-repeat bg-center"
         style={{
           backgroundImage: "url('/bannersolenesite.jpeg')",
           backgroundPosition: "center",
         }}
-      >
-        <div className="absolute bottom-8 md:bottom-[110px] left-1/2 md:left-[52%] -translate-x-1/2 w-[calc(100%-2rem)] max-w-sm sm:max-w-none sm:w-auto flex flex-col sm:flex-row gap-3 sm:gap-4">
+      />
+
+      <section className="w-full flex justify-center px-6 py-6 bg-brand-bg">
+        <div className="flex flex-col gap-4 w-full max-w-md">
           <Link
             href="/catalogo"
-            className="w-full sm:w-auto text-center bg-black text-white px-6 py-3 rounded-full"
+            className="w-full py-4 rounded-full bg-black text-white text-center"
           >
             Ver coleção
           </Link>
           <Link
             href="/contato"
-            className="w-full sm:w-auto text-center border border-gray-400 px-6 py-3 rounded-full"
+            className="w-full py-4 rounded-full border border-black text-center"
           >
             Falar com a Solenne
           </Link>
