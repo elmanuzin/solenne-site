@@ -47,39 +47,25 @@ export default function ProductFilters({
 
     return (
         <div className="space-y-4">
-            <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm p-6 space-y-4">
-                <div className="flex items-center gap-1.5 text-sm text-brand-muted">
-                    <SlidersHorizontal size={14} />
-                    <span>Categorias</span>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                    {orderedCategories.map((category) => {
-                        const isActive = selectedCategory === category.slug;
-
-                        return (
-                            <button
-                                key={category.slug}
-                                type="button"
-                                onClick={() => onCategoryChange(category.slug)}
-                                aria-pressed={isActive}
-                                className={`w-full bg-neutral-50 border border-neutral-200 rounded-xl py-4 text-sm font-medium hover:bg-neutral-100 hover:border-neutral-300 transition duration-200 active:scale-[0.98] ${
-                                    isActive ? "bg-neutral-100 border-neutral-300" : ""
-                                }`}
-                            >
-                                {category.name}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Filter bar */}
             <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-1.5 text-sm text-brand-muted">
                     <SlidersHorizontal size={14} />
                     <span>Filtros</span>
                 </div>
+
+                {/* Category */}
+                <select
+                    value={selectedCategory}
+                    onChange={(e) => onCategoryChange(e.target.value as CategorySlug | "all")}
+                    className="text-sm border border-brand-border rounded-full px-3 py-1.5 bg-brand-card text-brand-text focus:outline-none focus:ring-1 focus:ring-brand-accent"
+                >
+                    <option value="all">Todas categorias</option>
+                    {orderedCategories.map((category) => (
+                        <option key={category.slug} value={category.slug}>
+                            {category.name}
+                        </option>
+                    ))}
+                </select>
 
                 {/* Size */}
                 <select
