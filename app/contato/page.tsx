@@ -1,5 +1,4 @@
 import { MapPin, MessageCircle, Clock, Instagram } from "lucide-react";
-import { generateDefaultMessage } from "@/lib/whatsapp";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -47,7 +46,7 @@ export default function ContatoPage() {
                             Instagram
                         </h3>
                         <p className="text-sm text-brand-muted">
-                            Siga @solenne para novidades, lançamentos e bastidores da marca.
+                            Siga @use_solenne_ para novidades, lançamentos e bastidores da marca.
                         </p>
                     </div>
                 </div>
@@ -71,7 +70,7 @@ export default function ContatoPage() {
                             Horário de Atendimento
                         </h3>
                         <p className="text-sm text-brand-muted">
-                            Segunda a Sábado, das 9h às 18h
+                            Atendimento 24h por dia.
                         </p>
                     </div>
                 </div>
@@ -79,7 +78,7 @@ export default function ContatoPage() {
 
             <div className="text-center">
                 <a
-                    href={generateDefaultMessage()}
+                    href="https://wa.me/5543998804481"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 bg-[#25D366] text-white px-8 py-3.5 rounded-full text-sm font-semibold hover:opacity-90 transition-opacity shadow-md"
