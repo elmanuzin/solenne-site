@@ -58,7 +58,7 @@ export default async function Home() {
           backgroundPosition: "center",
         }}
       >
-        <div className="absolute left-[60%] top-[58%] -translate-x-1/2">
+        <div className="absolute left-[48%] top-[64%] -translate-x-1/2">
           <a
             href="/catalogo"
             className="inline-flex items-center justify-center rounded-full bg-black px-8 py-3 text-white text-sm font-medium shadow-lg hover:scale-105 transition"
