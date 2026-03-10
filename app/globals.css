@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+@theme {
+    --color-brand-bg: #FFF6DA;
+    --color-brand-bg-soft: #FFF9E8;
+    --color-brand-text: #111111;
+    --color-brand-accent: #C63A3A;
+    --color-brand-accent-hover: #a82e2e;
+    --color-brand-muted: #888888;
+    --color-brand-border: #e8e0d0;
+    --color-brand-card: #ffffff;
+
+    --font-heading: "Playfair Display", serif;
+    --font-body: "Inter", sans-serif;
+}
+
+@layer base {
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+        font-family: var(--font-body);
+        background-color: var(--color-brand-bg);
+        color: var(--color-brand-text);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+        font-family: var(--font-heading);
+        font-weight: 600;
+        line-height: 1.2;
+    }
+
+    a {
+        text-decoration: none;
+        color: inherit;
+    }
+
+    img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+    }
+}
+
+@layer utilities {
+
+    /* Layout */
+    .container-custom {
+        @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+    }
+
+    .section-spacing {
+        @apply py-16 sm:py-24;
+    }
+
+    /* Typography */
+    .text-heading-1 {
+        @apply font-heading text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-brand-text leading-[1.1];
+    }
+
+    .text-heading-2 {
+        @apply font-heading text-3xl sm:text-4xl font-bold tracking-tight text-brand-text;
+    }
+
+    .text-heading-3 {
+        @apply font-heading text-xl sm:text-2xl font-semibold text-brand-text;
+    }
+
+    .text-body {
+        @apply font-body text-base text-brand-text/80 leading-relaxed;
+    }
+
+    /* Components */
+    .btn-primary {
+        @apply inline-flex items-center justify-center gap-2 bg-brand-accent text-white font-medium rounded-full px-8 py-3 transition-all duration-300 hover:bg-brand-accent-hover hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+
+    .btn-secondary {
+        @apply inline-flex items-center justify-center gap-2 bg-transparent border border-brand-accent text-brand-accent font-medium rounded-full px-8 py-3 transition-all duration-300 hover:bg-brand-accent/5 active:scale-95;
+    }
+
+    .card-base {
+        @apply bg-brand-card rounded-2xl shadow-sm border border-brand-border/50 overflow-hidden transition-shadow hover:shadow-md;
+    }
+}
+
+/* Product image placeholder - used when images don't exist */
+.product-image-placeholder {
+    background: linear-gradient(135deg, #f5ede0 0%, #e8dfd0 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-heading);
+    color: var(--color-brand-muted);
+    font-size: 0.875rem;
+    text-align: center;
+    padding: 1rem;
+}
+
+.kiss-emoji {
+    font-size: 28px;
+    line-height: 1;
+    display: inline-block;
+    transform: translateY(2px);
+}
