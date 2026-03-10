@@ -13,10 +13,9 @@ export default async function Home() {
   return (
     <div className="pb-20">
       <section
-        className="w-full min-h-[60vh] md:min-h-[80vh] relative flex items-center justify-center overflow-x-hidden"
+        className="w-full min-h-[60vh] md:min-h-[80vh] relative flex items-center justify-center overflow-hidden bg-contain md:bg-cover bg-no-repeat bg-center"
         style={{
           backgroundImage: "url('/bannersolenesite.jpeg')",
-          backgroundSize: "cover",
           backgroundPosition: "center",
         }}
       >
