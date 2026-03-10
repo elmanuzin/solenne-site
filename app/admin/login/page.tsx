@@ -13,6 +13,8 @@ export default function AdminLoginPage() {
         setLoading(true);
 
         const formData = new FormData(event.currentTarget);
+        const email = String(formData.get("email") || "").trim();
+        const password = String(formData.get("password") || "");
 
         try {
             const response = await fetch("/api/admin/login", {
@@ -21,8 +23,8 @@ export default function AdminLoginPage() {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    email: formData.get("email"),
-                    password: formData.get("password"),
+                    email,
+                    password,
                 }),
             });
 
