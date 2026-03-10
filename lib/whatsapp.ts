@@ -45,6 +45,28 @@ export function generateProductMessage(
     return buildWhatsAppLink(message);
 }
 
+export function generateProductAvailabilityMessage(
+    productName: string,
+    size: string,
+    color: string,
+    productUrl: string
+): string {
+    const message = [
+        "Olá! Vi no site da Solenne e gostaria de saber se está disponível:",
+        "",
+        `Produto: ${productName}`,
+        `Tamanho: ${size}`,
+        `Cor: ${color}`,
+        "",
+        "Link do produto:",
+        productUrl,
+        "",
+        "Pode me confirmar por favor? 💋",
+    ].join("\n");
+
+    return buildWhatsAppLink(message);
+}
+
 export function generateClubRewardMessage(croppedName: string): string {
     const message = [
         "Olá, completei 10 selos e quero resgatar meu cropped exclusivo 💋",

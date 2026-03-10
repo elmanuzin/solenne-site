@@ -29,6 +29,7 @@ export interface AdminProductRecord {
     available: boolean;
     featured: boolean;
     newArrival: boolean;
+    bestSeller: boolean;
     isLancamento: boolean;
     created_at: string;
 }
@@ -44,6 +45,7 @@ export interface AdminProductInput {
     image?: string;
     featured?: boolean;
     newArrival?: boolean;
+    bestSeller?: boolean;
     isLancamento?: boolean;
     available?: boolean;
 }
@@ -59,6 +61,8 @@ interface ProdutoRow {
     imagem: string | null;
     disponivel: boolean;
     destaque: boolean;
+    novidade: boolean | null;
+    mais_vendido: boolean | null;
     lancamento: boolean;
     created_at: string;
 }
@@ -222,7 +226,8 @@ function mapProdutoRow(
         image: row.imagem || "",
         available: Boolean(row.disponivel),
         featured: Boolean(row.destaque),
-        newArrival: Boolean(row.lancamento),
+        newArrival: Boolean(row.novidade ?? row.lancamento),
+        bestSeller: Boolean(row.mais_vendido),
         isLancamento: Boolean(row.lancamento),
         created_at: row.created_at,
     };
@@ -285,7 +290,7 @@ async function fetchAdminProducts(): Promise<AdminProductRecord[]> {
     const { data, error } = await supabase
         .from("produtos")
         .select(
-            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, novidade, mais_vendido, lancamento, created_at"
         )
         .order("created_at", { ascending: false });
 
@@ -315,7 +320,7 @@ export async function getAdminProductById(
     const { data, error } = await supabase
         .from("produtos")
         .select(
-            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, novidade, mais_vendido, lancamento, created_at"
         )
         .eq("id", productId)
         .maybeSingle();
@@ -344,14 +349,16 @@ export async function createAdminProduct(
         imagem: input.image || null,
         disponivel: Boolean(input.available ?? true),
         destaque: Boolean(input.featured),
-        lancamento: Boolean(input.isLancamento || input.newArrival),
+        novidade: Boolean(input.newArrival),
+        mais_vendido: Boolean(input.bestSeller),
+        lancamento: Boolean(input.isLancamento),
     };
 
     const { data, error } = await supabase
         .from("produtos")
         .insert(payload)
         .select(
-            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, novidade, mais_vendido, lancamento, created_at"
         )
         .single();
 
@@ -383,7 +390,9 @@ export async function updateAdminProduct(
         imagem: input.image || null,
         disponivel: Boolean(input.available ?? true),
         destaque: Boolean(input.featured),
-        lancamento: Boolean(input.isLancamento || input.newArrival),
+        novidade: Boolean(input.newArrival),
+        mais_vendido: Boolean(input.bestSeller),
+        lancamento: Boolean(input.isLancamento),
     };
 
     const { data, error } = await supabase
@@ -391,7 +400,7 @@ export async function updateAdminProduct(
         .update(payload)
         .eq("id", productId)
         .select(
-            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, novidade, mais_vendido, lancamento, created_at"
         )
         .maybeSingle();
 
@@ -443,7 +452,7 @@ export async function setAdminProductAvailability(
         .update({ disponivel: available })
         .eq("id", productId)
         .select(
-            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, novidade, mais_vendido, lancamento, created_at"
         )
         .maybeSingle();
 
@@ -468,7 +477,7 @@ export async function setAdminProductStock(
         .update({ estoque: safeStock })
         .eq("id", productId)
         .select(
-            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, novidade, mais_vendido, lancamento, created_at"
         )
         .maybeSingle();
 
@@ -626,6 +635,9 @@ export async function importAdminProductsFromCsv(file: File): Promise<CsvImportR
                 estoque: 10,
                 cor: cor.trim(),
                 disponivel: true,
+                destaque: false,
+                novidade: false,
+                mais_vendido: false,
                 created_at: new Date().toISOString(),
             })
             .select("id")

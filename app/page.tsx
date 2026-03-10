@@ -2,44 +2,63 @@ import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
 import TrustBar from "@/components/ui/TrustBar";
 import ProductGrid from "@/components/catalog/ProductGrid";
+import HomeBanner from "@/components/home/HomeBanner";
 import { categories } from "@/lib/data";
-import { listFeaturedProducts } from "@/lib/catalog";
-import { getHomepageBannerUrl } from "@/services/admin-banner.service";
+import {
+  listBestSellerProducts,
+  listFeaturedProducts,
+  listNewArrivals,
+} from "@/lib/catalog";
+import { getHomepageBannerConfig } from "@/services/admin-banner.service";
+import { listMostViewedProducts } from "@/lib/views";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
+
+function ProductSection({
+  title,
+  subtitle,
+  products,
+}: {
+  title: string;
+  subtitle: string;
+  products: Awaited<ReturnType<typeof listFeaturedProducts>>;
+}) {
+  return (
+    <section className="section-spacing container-custom">
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-10">
+        <div>
+          <h2 className="text-heading-2">{title}</h2>
+          <p className="text-sm text-brand-muted mt-2">{subtitle}</p>
+        </div>
+        <Link
+          href="/catalogo"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-accent hover:text-brand-accent-hover transition-colors"
+        >
+          Ver catálogo completo
+          <ArrowRight size={16} />
+        </Link>
+      </div>
+      <ProductGrid products={products} />
+    </section>
+  );
+}
 
 export default async function Home() {
-  const [featuredProducts, heroBannerUrl] = await Promise.all([
+  const [destaques, novidades, maisVendidos, maisVistos, banner] = await Promise.all([
     listFeaturedProducts(8),
-    getHomepageBannerUrl(),
+    listNewArrivals(8),
+    listBestSellerProducts(8),
+    listMostViewedProducts(8),
+    getHomepageBannerConfig(),
   ]);
 
   return (
     <div className="pb-20">
-      <section
-        className="w-full min-h-[50vh] md:min-h-[80vh] flex items-center justify-center overflow-hidden bg-contain md:bg-cover bg-no-repeat bg-center"
-        style={{
-          backgroundImage: `url("${heroBannerUrl}")`,
-          backgroundPosition: "center",
-        }}
+      <HomeBanner
+        bannerUrl={banner.bannerUrl}
+        bannerTitle={banner.bannerTitle}
+        bannerSubtitle={banner.bannerSubtitle}
       />
-
-      <section className="w-full flex justify-center px-6 py-6 bg-brand-bg">
-        <div className="flex flex-col gap-4 w-full max-w-md">
-          <Link
-            href="/catalogo"
-            className="w-full py-4 rounded-full bg-black text-white text-center"
-          >
-            Ver coleção
-          </Link>
-          <Link
-            href="/contato"
-            className="w-full py-4 rounded-full border border-black text-center"
-          >
-            Falar com a Solenne
-          </Link>
-        </div>
-      </section>
 
       <TrustBar />
 
@@ -93,28 +112,29 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="section-spacing container-custom">
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-10">
-          <div>
-            <p className="text-xs uppercase tracking-[0.22em] text-brand-accent font-semibold mb-2">
-              Destaques da Loja
-            </p>
-            <h2 className="text-heading-2">Peças mais desejadas</h2>
-            <p className="text-sm text-brand-muted mt-2">
-              Seleção especial da Solenne para você comprar pelo WhatsApp.
-            </p>
-          </div>
-          <Link
-            href="/catalogo"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-brand-accent hover:text-brand-accent-hover transition-colors"
-          >
-            Ver catálogo completo
-            <ArrowRight size={16} />
-          </Link>
-        </div>
+      <ProductSection
+        title="Destaques 💋"
+        subtitle="Peças selecionadas em destaque na Solenne."
+        products={destaques}
+      />
 
-        <ProductGrid products={featuredProducts} />
-      </section>
+      <ProductSection
+        title="Novidades ✨"
+        subtitle="Últimas peças adicionadas à coleção."
+        products={novidades}
+      />
+
+      <ProductSection
+        title="Mais vendidos 🔥"
+        subtitle="Os produtos favoritos das clientes Solenne."
+        products={maisVendidos}
+      />
+
+      <ProductSection
+        title="Mais vistos 👀"
+        subtitle="As peças mais visualizadas no site da Solenne."
+        products={maisVistos}
+      />
 
       <section className="container-custom pb-20">
         <div className="rounded-3xl border border-brand-border bg-white/70 p-8 sm:p-10">

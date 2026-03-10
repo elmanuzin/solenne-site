@@ -51,14 +51,19 @@ export default function ProductCard({ product }: ProductCardProps) {
 
                 {/* Badges */}
                 <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
+                    {product.featured && (
+                        <span className="inline-block bg-white text-brand-text text-[10px] uppercase tracking-widest font-medium px-2.5 py-1 rounded-full shadow-sm">
+                            Destaque
+                        </span>
+                    )}
                     {product.newArrival && (
                         <span className="inline-block bg-brand-accent text-white text-[10px] uppercase tracking-widest font-medium px-2.5 py-1 rounded-full shadow-sm">
                             Novo
                         </span>
                     )}
-                    {product.featured && (
-                        <span className="inline-block bg-white text-brand-text text-[10px] uppercase tracking-widest font-medium px-2.5 py-1 rounded-full shadow-sm">
-                            Destaque
+                    {product.bestSeller && (
+                        <span className="inline-block bg-brand-text text-white text-[10px] uppercase tracking-widest font-medium px-2.5 py-1 rounded-full shadow-sm">
+                            Mais vendido
                         </span>
                     )}
                     {isUnavailable && (

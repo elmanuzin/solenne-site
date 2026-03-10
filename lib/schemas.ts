@@ -43,6 +43,7 @@ export const ProductFormSchema = z.object({
         }),
     featured: z.boolean().default(false),
     newArrival: z.boolean().default(false),
+    bestSeller: z.boolean().default(false),
     isLancamento: z.boolean().default(false),
     available: z.boolean().default(true),
 });

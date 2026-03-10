@@ -6,6 +6,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 
 const DEFAULT_BANNER_URL = "/bannersolenesite.jpeg";
+const DEFAULT_BANNER_TITLE = "Nova coleção Solenne";
+const DEFAULT_BANNER_SUBTITLE = "Peças elegantes para todas as ocasiões";
 const BANNER_BUCKET = "banners";
 const BANNER_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 const BANNER_ALLOWED_TYPES = new Set([
@@ -18,7 +20,15 @@ const BANNER_ALLOWED_TYPES = new Set([
 type SiteConfigRow = {
     id: string;
     banner_url: string | null;
+    banner_title: string | null;
+    banner_subtitle: string | null;
     created_at: string | null;
+};
+
+export type SiteBannerConfig = {
+    bannerUrl: string;
+    bannerTitle: string;
+    bannerSubtitle: string;
 };
 
 function extractStoragePathFromPublicUrl(url: string): string | null {
@@ -32,6 +42,16 @@ function extractStoragePathFromPublicUrl(url: string): string | null {
 function normalizeBannerUrl(value: string | null | undefined): string {
     const normalized = (value || "").trim();
     return normalized || DEFAULT_BANNER_URL;
+}
+
+function normalizeBannerTitle(value: string | null | undefined): string {
+    const normalized = (value || "").trim();
+    return normalized || DEFAULT_BANNER_TITLE;
+}
+
+function normalizeBannerSubtitle(value: string | null | undefined): string {
+    const normalized = (value || "").trim();
+    return normalized || DEFAULT_BANNER_SUBTITLE;
 }
 
 async function ensureBannerBucket() {
@@ -70,7 +90,7 @@ async function getOrCreateSiteConfigRow(): Promise<SiteConfigRow> {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
         .from("site_config")
-        .select("id, banner_url, created_at")
+        .select("id, banner_url, banner_title, banner_subtitle, created_at")
         .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
@@ -84,8 +104,10 @@ async function getOrCreateSiteConfigRow(): Promise<SiteConfigRow> {
         .insert({
             id: randomUUID(),
             banner_url: DEFAULT_BANNER_URL,
+            banner_title: DEFAULT_BANNER_TITLE,
+            banner_subtitle: DEFAULT_BANNER_SUBTITLE,
         })
-        .select("id, banner_url, created_at")
+        .select("id, banner_url, banner_title, banner_subtitle, created_at")
         .single();
 
     if (insertError || !created) {
@@ -95,80 +117,123 @@ async function getOrCreateSiteConfigRow(): Promise<SiteConfigRow> {
     return created as SiteConfigRow;
 }
 
-export async function getAdminBannerUrl(): Promise<string> {
+export async function getAdminBannerConfig(): Promise<SiteBannerConfig> {
     try {
         const row = await getOrCreateSiteConfigRow();
-        return normalizeBannerUrl(row.banner_url);
+        return {
+            bannerUrl: normalizeBannerUrl(row.banner_url),
+            bannerTitle: normalizeBannerTitle(row.banner_title),
+            bannerSubtitle: normalizeBannerSubtitle(row.banner_subtitle),
+        };
     } catch (error) {
         console.error("Erro ao carregar banner admin:", error);
-        return DEFAULT_BANNER_URL;
+        return {
+            bannerUrl: DEFAULT_BANNER_URL,
+            bannerTitle: DEFAULT_BANNER_TITLE,
+            bannerSubtitle: DEFAULT_BANNER_SUBTITLE,
+        };
     }
 }
 
-async function fetchHomepageBannerUrl(): Promise<string> {
+async function fetchHomepageBannerConfig(): Promise<SiteBannerConfig> {
     const row = await getOrCreateSiteConfigRow();
-    return normalizeBannerUrl(row.banner_url);
+    return {
+        bannerUrl: normalizeBannerUrl(row.banner_url),
+        bannerTitle: normalizeBannerTitle(row.banner_title),
+        bannerSubtitle: normalizeBannerSubtitle(row.banner_subtitle),
+    };
 }
 
-const getHomepageBannerUrlCached = unstable_cache(
-    fetchHomepageBannerUrl,
-    ["homepage-banner-url"],
+const getHomepageBannerConfigCached = unstable_cache(
+    fetchHomepageBannerConfig,
+    ["homepage-banner-config"],
     {
         tags: [CACHE_TAGS.siteBanner],
         revalidate: 60,
     }
 );
 
-export async function getHomepageBannerUrl(): Promise<string> {
+export async function getHomepageBannerConfig(): Promise<SiteBannerConfig> {
     try {
-        return await getHomepageBannerUrlCached();
+        return await getHomepageBannerConfigCached();
     } catch (error) {
         console.error("Erro ao carregar banner da home (cache):", error);
-        return DEFAULT_BANNER_URL;
+        return {
+            bannerUrl: DEFAULT_BANNER_URL,
+            bannerTitle: DEFAULT_BANNER_TITLE,
+            bannerSubtitle: DEFAULT_BANNER_SUBTITLE,
+        };
     }
 }
 
-export async function updateSiteBanner(file: File): Promise<string> {
-    if (file.size <= 0) {
-        throw new Error("Arquivo de banner inválido.");
-    }
+export async function getAdminBannerUrl(): Promise<string> {
+    const config = await getAdminBannerConfig();
+    return config.bannerUrl;
+}
 
-    if (file.size > BANNER_MAX_SIZE_BYTES) {
-        throw new Error("A imagem do banner deve ter no máximo 5MB.");
-    }
+export async function getHomepageBannerUrl(): Promise<string> {
+    const config = await getHomepageBannerConfig();
+    return config.bannerUrl;
+}
 
-    const contentType = (file.type || "").toLowerCase();
-    if (!BANNER_ALLOWED_TYPES.has(contentType)) {
-        throw new Error("Formato inválido. Use JPG, JPEG, PNG ou WEBP.");
-    }
+export async function updateSiteBannerConfig(params: {
+    file?: File | null;
+    title?: string;
+    subtitle?: string;
+}): Promise<SiteBannerConfig> {
+    const file = params.file || null;
+    const title = params.title?.trim();
+    const subtitle = params.subtitle?.trim();
 
-    await ensureBannerBucket();
     const supabase = createSupabaseAdminClient();
     const current = await getOrCreateSiteConfigRow();
-    const extension =
-        file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-    const filePath = `home/banner-${Date.now()}.${extension}`;
-    const bytes = Buffer.from(await file.arrayBuffer());
+    let nextBannerUrl = normalizeBannerUrl(current.banner_url);
+    let uploadedPath: string | null = null;
 
-    const { error: uploadError } = await supabase.storage
-        .from(BANNER_BUCKET)
-        .upload(filePath, bytes, {
-            contentType: contentType || "image/jpeg",
-            upsert: true,
-        });
+    if (file) {
+        if (file.size <= 0) {
+            throw new Error("Arquivo de banner inválido.");
+        }
 
-    if (uploadError) {
-        throw new Error("Falha ao enviar banner para o storage.");
+        if (file.size > BANNER_MAX_SIZE_BYTES) {
+            throw new Error("A imagem do banner deve ter no máximo 5MB.");
+        }
+
+        const contentType = (file.type || "").toLowerCase();
+        if (!BANNER_ALLOWED_TYPES.has(contentType)) {
+            throw new Error("Formato inválido. Use JPG, JPEG, PNG ou WEBP.");
+        }
+
+        await ensureBannerBucket();
+        const extension =
+            file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+        uploadedPath = `home/banner-${Date.now()}.${extension}`;
+        const bytes = Buffer.from(await file.arrayBuffer());
+
+        const { error: uploadError } = await supabase.storage
+            .from(BANNER_BUCKET)
+            .upload(uploadedPath, bytes, {
+                contentType: contentType || "image/jpeg",
+                upsert: true,
+            });
+
+        if (uploadError) {
+            throw new Error("Falha ao enviar banner para o storage.");
+        }
+
+        const { data: publicData } = supabase.storage
+            .from(BANNER_BUCKET)
+            .getPublicUrl(uploadedPath);
+        nextBannerUrl = publicData.publicUrl;
     }
 
-    const { data: publicData } = supabase.storage
-        .from(BANNER_BUCKET)
-        .getPublicUrl(filePath);
-
-    const nextBannerUrl = publicData.publicUrl;
     const { error: updateError } = await supabase
         .from("site_config")
-        .update({ banner_url: nextBannerUrl })
+        .update({
+            banner_url: nextBannerUrl,
+            banner_title: title || normalizeBannerTitle(current.banner_title),
+            banner_subtitle: subtitle || normalizeBannerSubtitle(current.banner_subtitle),
+        })
         .eq("id", current.id);
 
     if (updateError) {
@@ -176,9 +241,18 @@ export async function updateSiteBanner(file: File): Promise<string> {
     }
 
     const previousPath = extractStoragePathFromPublicUrl(current.banner_url || "");
-    if (previousPath && previousPath !== filePath) {
+    if (uploadedPath && previousPath && previousPath !== uploadedPath) {
         await supabase.storage.from(BANNER_BUCKET).remove([previousPath]);
     }
 
-    return nextBannerUrl;
+    return {
+        bannerUrl: nextBannerUrl,
+        bannerTitle: title || normalizeBannerTitle(current.banner_title),
+        bannerSubtitle: subtitle || normalizeBannerSubtitle(current.banner_subtitle),
+    };
+}
+
+export async function updateSiteBanner(file: File): Promise<string> {
+    const updated = await updateSiteBannerConfig({ file });
+    return updated.bannerUrl;
 }

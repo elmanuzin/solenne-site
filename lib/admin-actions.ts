@@ -30,8 +30,9 @@ import {
     adjustCustomerStamps,
     createAdminCustomer,
 } from "@/services/admin-client.service";
-import { updateSiteBanner } from "@/services/admin-banner.service";
+import { updateSiteBannerConfig } from "@/services/admin-banner.service";
 import { CACHE_TAGS } from "@/lib/cache-tags";
+import { recalculatePopularProducts } from "@/lib/views";
 
 function parseBoolean(input: FormDataEntryValue | null): boolean {
     if (!input) return false;
@@ -59,6 +60,7 @@ function parseAndValidateProductForm(formData: FormData) {
         sizes: parseSizes(formData.getAll("sizes")),
         featured: parseBoolean(formData.get("featured")),
         newArrival: parseBoolean(formData.get("newArrival")),
+        bestSeller: parseBoolean(formData.get("bestSeller")),
         isLancamento: parseBoolean(formData.get("isLancamento")),
         available: parseBoolean(formData.get("available")),
     };
@@ -380,17 +382,27 @@ export async function updateSiteBannerAction(formData: FormData) {
         await verifyAdminSession();
 
         const bannerFile = formData.get("banner");
-        if (!(bannerFile instanceof File) || bannerFile.size <= 0) {
-            return { error: "Selecione uma imagem de banner válida." };
+        const bannerTitle = String(formData.get("bannerTitle") || "").trim();
+        const bannerSubtitle = String(formData.get("bannerSubtitle") || "").trim();
+
+        const parsedFile =
+            bannerFile instanceof File && bannerFile.size > 0 ? bannerFile : null;
+
+        if (!parsedFile && !bannerTitle && !bannerSubtitle) {
+            return { error: "Informe os textos do banner ou envie uma imagem." };
         }
 
-        const bannerUrl = await updateSiteBanner(bannerFile);
+        const bannerConfig = await updateSiteBannerConfig({
+            file: parsedFile,
+            title: bannerTitle,
+            subtitle: bannerSubtitle,
+        });
         revalidatePath("/");
         revalidatePath("/admin/banner");
         revalidatePath("/admin/dashboard");
         revalidateAdminCache([CACHE_TAGS.siteBanner]);
 
-        return { success: true as const, bannerUrl };
+        return { success: true as const, bannerConfig };
     } catch (error) {
         return {
             error:
@@ -398,6 +410,23 @@ export async function updateSiteBannerAction(formData: FormData) {
                     ? error.message
                     : "Não foi possível atualizar o banner.",
         };
+    }
+}
+
+export async function recalculatePopularProductsAction() {
+    try {
+        await verifyAdminSession();
+
+        const result = await recalculatePopularProducts();
+        revalidatePath("/");
+        revalidatePath("/catalogo");
+        revalidatePath("/admin/produtos");
+        revalidatePath("/admin/analytics");
+        revalidateAdminCache([CACHE_TAGS.adminProducts, CACHE_TAGS.productViews]);
+
+        return { success: true as const, updated: result.updated };
+    } catch {
+        return { error: "Não foi possível recalcular os produtos populares." };
     }
 }
 

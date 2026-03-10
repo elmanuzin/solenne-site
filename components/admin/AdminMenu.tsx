@@ -7,6 +7,7 @@ const items = [
     { href: "/admin/produtos", label: "Produtos" },
     { href: "/admin/clientes", label: "Clientes" },
     { href: "/admin/banner", label: "Banner" },
+    { href: "/admin/analytics", label: "Analytics" },
 ];
 
 export default function AdminMenu() {

@@ -15,7 +15,8 @@ import {
 import ProductGrid from "@/components/catalog/ProductGrid";
 import type { Product, SizeOption } from "@/types";
 import { formatPrice } from "@/lib/utils";
-import { gerarLinkWhatsApp } from "@/lib/whatsapp";
+import { generateProductAvailabilityMessage } from "@/lib/whatsapp";
+import { useCart } from "@/context/CartContext";
 
 interface ProductClientProps {
     product: Product;
@@ -37,14 +38,21 @@ export default function ProductClient({
     const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
     const [isZoomed, setIsZoomed] = useState(false);
     const selectedColor = product.color;
+    const { addToCart, openDrawer } = useCart();
 
     const isOutOfStock = !product.available || product.stock <= 0;
     const isLowStock = !isOutOfStock && product.stock <= 3;
 
-    const whatsappLink = gerarLinkWhatsApp(
+    const productUrl =
+        typeof window !== "undefined"
+            ? window.location.href
+            : `/produto/${product.slug}`;
+
+    const whatsappLink = generateProductAvailabilityMessage(
         product.name,
+        selectedSize ?? "",
         selectedColor,
-        selectedSize ?? ""
+        productUrl
     );
 
     const handleWhatsAppClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -53,6 +61,23 @@ export default function ProductClient({
             alert("Selecione cor e tamanho antes de comprar");
         }
     };
+
+    function handleAddToCart() {
+        if (!selectedColor || !selectedSize) {
+            alert("Selecione cor e tamanho antes de adicionar ao carrinho");
+            return;
+        }
+
+        addToCart({
+            productId: product.id,
+            nome: product.name,
+            preco: product.price,
+            tamanho: selectedSize,
+            cor: selectedColor,
+            url: productUrl,
+        });
+        openDrawer();
+    }
 
     return (
         <div className="max-w-7xl mx-auto px-4 md:px-10 py-8 sm:py-12">
@@ -175,6 +200,13 @@ export default function ProductClient({
                         )}
                     </div>
 
+                    {!isOutOfStock ? (
+                        <p className="text-xs text-brand-muted mb-8">
+                            Estoque atual: {product.stock}{" "}
+                            {product.stock === 1 ? "unidade" : "unidades"}.
+                        </p>
+                    ) : null}
+
                     <div className="mb-10">
                         <div className="flex justify-between items-center mb-4">
                             <p className="text-xs uppercase tracking-widest text-brand-text font-bold">
@@ -263,6 +295,14 @@ export default function ProductClient({
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
                             >
+                                <button
+                                    type="button"
+                                    onClick={handleAddToCart}
+                                    className="w-full mb-3 py-4 rounded-full border border-brand-border bg-white text-brand-text text-base font-semibold hover:border-brand-accent transition-colors"
+                                >
+                                    Adicionar ao carrinho
+                                </button>
+
                                 <a
                                     href={whatsappLink}
                                     target="_blank"

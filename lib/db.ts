@@ -39,6 +39,7 @@ export interface DBProduct {
     image: string;
     featured: boolean;
     newArrival: boolean;
+    bestSeller: boolean;
     isLancamento: boolean;
     available: boolean;
     created_at: string;
@@ -56,6 +57,7 @@ export interface CreateProductInput {
     image?: string;
     featured?: boolean;
     newArrival?: boolean;
+    bestSeller?: boolean;
     isLancamento?: boolean;
     available?: boolean;
 }
@@ -72,6 +74,7 @@ export interface UpdateProductInput {
     image?: string;
     featured?: boolean;
     newArrival?: boolean;
+    bestSeller?: boolean;
     isLancamento?: boolean;
     available?: boolean;
 }
@@ -87,6 +90,8 @@ interface ProdutoRow {
     imagem: string | null;
     disponivel: boolean | null;
     destaque: boolean | null;
+    novidade: boolean | null;
+    mais_vendido: boolean | null;
     lancamento: boolean | null;
     created_at: string | null;
 }
@@ -236,7 +241,8 @@ function mapProductRow(row: ProdutoRow, sizesByProductId: Record<string, SizeOpt
         sizes: sizesByProductId[row.id] || ["P", "M", "G"],
         image: row.imagem || "",
         featured: Boolean(row.destaque),
-        newArrival: Boolean(row.lancamento),
+        newArrival: Boolean(row.novidade ?? row.lancamento),
+        bestSeller: Boolean(row.mais_vendido),
         isLancamento: Boolean(row.lancamento),
         available: Boolean(row.disponivel),
         created_at: row.created_at || nowIso(),
@@ -662,7 +668,7 @@ export async function getAllProducts(): Promise<DBProduct[]> {
     const { data, error } = await supabase
         .from("produtos")
         .select(
-            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, novidade, mais_vendido, lancamento, created_at"
         )
         .order("created_at", { ascending: false });
 
@@ -675,12 +681,39 @@ export async function getAllProducts(): Promise<DBProduct[]> {
     return rows.map((row) => mapProductRow(row, sizesByProductId));
 }
 
+export async function getProductsByFlag(
+    flag: "destaque" | "novidade" | "mais_vendido",
+    options?: { limit?: number; orderByNewest?: boolean }
+): Promise<DBProduct[]> {
+    const supabase = createSupabaseAdminClient();
+    const limit = Math.max(1, Math.trunc(options?.limit ?? 8));
+    const orderByNewest = options?.orderByNewest ?? false;
+
+    const { data, error } = await supabase
+        .from("produtos")
+        .select(
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, novidade, mais_vendido, lancamento, created_at"
+        )
+        .eq(flag, true)
+        .eq("disponivel", true)
+        .order("created_at", { ascending: !orderByNewest })
+        .limit(limit);
+
+    if (error) {
+        throw new Error("Falha ao carregar produtos filtrados por flag.");
+    }
+
+    const rows = (data || []) as ProdutoRow[];
+    const sizesByProductId = await listSizesByProductIds(rows.map((row) => row.id));
+    return rows.map((row) => mapProductRow(row, sizesByProductId));
+}
+
 export async function getProductById(id: string): Promise<DBProduct | null> {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
         .from("produtos")
         .select(
-            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, novidade, mais_vendido, lancamento, created_at"
         )
         .eq("id", id)
         .maybeSingle();
@@ -710,7 +743,9 @@ export async function createProduct(input: CreateProductInput): Promise<DBProduc
         descricao: input.description.trim(),
         imagem: input.image || null,
         destaque: Boolean(input.featured),
-        lancamento: Boolean(input.newArrival || input.isLancamento),
+        novidade: Boolean(input.newArrival),
+        mais_vendido: Boolean(input.bestSeller),
+        lancamento: Boolean(input.isLancamento),
         disponivel:
             typeof input.available === "boolean"
                 ? input.available
@@ -721,7 +756,7 @@ export async function createProduct(input: CreateProductInput): Promise<DBProduc
         .from("produtos")
         .insert(payload)
         .select(
-            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, lancamento, created_at"
+            "id, nome, categoria, cor, preco, descricao, estoque, imagem, disponivel, destaque, novidade, mais_vendido, lancamento, created_at"
         )
         .single();
 
@@ -762,8 +797,14 @@ export async function updateProduct(
     if (input.description !== undefined) payload.descricao = input.description.trim();
     if (input.image !== undefined) payload.imagem = input.image || null;
     if (input.featured !== undefined) payload.destaque = Boolean(input.featured);
-    if (input.newArrival !== undefined || input.isLancamento !== undefined) {
-        payload.lancamento = Boolean(input.newArrival ?? input.isLancamento);
+    if (input.newArrival !== undefined) {
+        payload.novidade = Boolean(input.newArrival);
+    }
+    if (input.bestSeller !== undefined) {
+        payload.mais_vendido = Boolean(input.bestSeller);
+    }
+    if (input.isLancamento !== undefined) {
+        payload.lancamento = Boolean(input.isLancamento);
     }
     if (input.available !== undefined) payload.disponivel = Boolean(input.available);
 

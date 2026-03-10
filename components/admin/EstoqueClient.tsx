@@ -39,6 +39,7 @@ interface ProductAdminItem {
     available: boolean;
     featured: boolean;
     newArrival: boolean;
+    bestSeller: boolean;
     isLancamento: boolean;
 }
 
@@ -748,6 +749,14 @@ export default function EstoqueClient({
                                         defaultChecked={editingProduct ? editingProduct.newArrival : false}
                                     />
                                     Marcar como novidade
+                                </label>
+                                <label className="inline-flex items-center gap-2 text-sm text-brand-text">
+                                    <input
+                                        type="checkbox"
+                                        name="bestSeller"
+                                        defaultChecked={editingProduct ? editingProduct.bestSeller : false}
+                                    />
+                                    Marcar como mais vendido
                                 </label>
                                 <label className="inline-flex items-center gap-2 text-sm text-brand-text">
                                     <input

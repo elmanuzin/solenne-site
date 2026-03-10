@@ -12,6 +12,7 @@ export interface Product {
     available: boolean;
     featured?: boolean;
     newArrival?: boolean;
+    bestSeller?: boolean;
     isLancamento?: boolean;
     createdAt?: string;
 }

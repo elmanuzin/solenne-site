@@ -6,12 +6,20 @@ import Link from "next/link";
 import { ArrowLeft, Upload } from "lucide-react";
 import { updateSiteBannerAction } from "@/lib/admin-actions";
 
+type BannerConfig = {
+    bannerUrl: string;
+    bannerTitle: string;
+    bannerSubtitle: string;
+};
+
 export default function BannerClient({
-    initialBannerUrl,
+    initialBanner,
 }: {
-    initialBannerUrl: string;
+    initialBanner: BannerConfig;
 }) {
-    const [bannerUrl, setBannerUrl] = useState(initialBannerUrl);
+    const [bannerUrl, setBannerUrl] = useState(initialBanner.bannerUrl);
+    const [bannerTitle, setBannerTitle] = useState(initialBanner.bannerTitle);
+    const [bannerSubtitle, setBannerSubtitle] = useState(initialBanner.bannerSubtitle);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
     const [isSaving, setIsSaving] = useState(false);
@@ -33,12 +41,13 @@ export default function BannerClient({
                 return;
             }
 
-            if (result?.bannerUrl) {
-                setBannerUrl(result.bannerUrl);
+            if (result?.bannerConfig) {
+                setBannerUrl(result.bannerConfig.bannerUrl);
+                setBannerTitle(result.bannerConfig.bannerTitle);
+                setBannerSubtitle(result.bannerConfig.bannerSubtitle);
             }
 
             setSuccess("Banner atualizado com sucesso.");
-            event.currentTarget.reset();
         } catch {
             setError("Não foi possível atualizar o banner.");
         } finally {
@@ -100,17 +109,43 @@ export default function BannerClient({
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
                             <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
-                                Imagem do banner
+                                Título do banner
+                            </label>
+                            <input
+                                name="bannerTitle"
+                                value={bannerTitle}
+                                onChange={(event) => setBannerTitle(event.target.value)}
+                                className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm"
+                                placeholder="Nova coleção Solenne"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
+                                Subtítulo do banner
+                            </label>
+                            <input
+                                name="bannerSubtitle"
+                                value={bannerSubtitle}
+                                onChange={(event) => setBannerSubtitle(event.target.value)}
+                                className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm"
+                                placeholder="Peças elegantes para todas as ocasiões"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
+                                Imagem do banner (opcional)
                             </label>
                             <input
                                 name="banner"
                                 type="file"
                                 accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                                required
                                 className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm"
                             />
                             <p className="text-xs text-brand-muted mt-2">
-                                Formatos aceitos: JPG, JPEG, PNG e WEBP (máx. 5MB).
+                                Formatos aceitos: JPG, JPEG, PNG e WEBP (máx. 5MB). Envie
+                                apenas quando quiser trocar a imagem.
                             </p>
                         </div>
 

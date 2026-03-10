@@ -6,6 +6,7 @@ import {
     listCatalogProducts,
 } from "@/lib/catalog";
 import { getCategoryBySlug } from "@/lib/data";
+import { recordProductView } from "@/lib/views";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +22,14 @@ export default async function ProductPage({
         notFound();
     }
 
+    await recordProductView(product.id);
+
     const category = getCategoryBySlug(product.category);
-    const suggested = await getSuggestedProducts(slug);
-    const colorVariants = (await listCatalogProducts({ includeUnavailable: true }))
+    const [suggested, allProducts] = await Promise.all([
+        getSuggestedProducts(slug, 4),
+        listCatalogProducts({ includeUnavailable: true }),
+    ]);
+    const colorVariants = allProducts
         .filter(
             (item) =>
                 item.name === product.name &&
