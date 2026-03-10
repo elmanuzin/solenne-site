@@ -197,6 +197,13 @@ export default function Header() {
                             </button>
                         </form>
 
+                        <a
+                            href="/catalogo"
+                            className="mr-4 inline-flex items-center justify-center rounded-full bg-black px-5 py-2 text-sm font-medium text-white hover:opacity-90 transition"
+                        >
+                            Ver coleção
+                        </a>
+
                         <Link
                             href="/clube"
                             className="flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-black hover:opacity-80 transition-opacity"
