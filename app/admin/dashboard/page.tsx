@@ -16,10 +16,35 @@ import { listAdminProducts } from "@/services/admin-product.service";
 
 export const dynamic = "force-dynamic";
 
+const EMPTY_STATS = {
+    totalStamps: 0,
+    totalReferralStamps: 0,
+    totalRedemptions: 0,
+    totalCustomers: 0,
+};
+
+async function safeListProducts() {
+    try {
+        return await listAdminProducts();
+    } catch (error) {
+        console.error("Erro ao carregar produtos do dashboard:", error);
+        return [];
+    }
+}
+
+async function safeGetAdminStats() {
+    try {
+        return await getAdminStats();
+    } catch (error) {
+        console.error("Erro ao carregar métricas do dashboard:", error);
+        return EMPTY_STATS;
+    }
+}
+
 export default async function AdminDashboardPage() {
     const [products, stats] = await Promise.all([
-        listAdminProducts(),
-        getAdminStats(),
+        safeListProducts(),
+        safeGetAdminStats(),
     ]);
 
     const totalProducts = products.length;
