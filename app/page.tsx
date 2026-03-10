@@ -2,14 +2,12 @@ import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
 import TrustBar from "@/components/ui/TrustBar";
 import ProductGrid from "@/components/catalog/ProductGrid";
-import HomeBanner from "@/components/home/HomeBanner";
 import { categories } from "@/lib/data";
 import {
   listBestSellerProducts,
   listFeaturedProducts,
   listNewArrivals,
 } from "@/lib/catalog";
-import { getHomepageBannerConfig } from "@/services/admin-banner.service";
 import { listMostViewedProducts } from "@/lib/views";
 
 export const revalidate = 60;
@@ -44,21 +42,42 @@ function ProductSection({
 }
 
 export default async function Home() {
-  const [destaques, novidades, maisVendidos, maisVistos, banner] = await Promise.all([
+  const [destaques, novidades, maisVendidos, maisVistos] = await Promise.all([
     listFeaturedProducts(8),
     listNewArrivals(8),
     listBestSellerProducts(8),
     listMostViewedProducts(8),
-    getHomepageBannerConfig(),
   ]);
 
   return (
     <div className="pb-20">
-      <HomeBanner
-        bannerUrl={banner.bannerUrl}
-        bannerTitle={banner.bannerTitle}
-        bannerSubtitle={banner.bannerSubtitle}
+      <section
+        className="w-full min-h-[50vh] md:min-h-[80vh] flex items-center justify-center overflow-hidden bg-contain md:bg-cover bg-no-repeat bg-center"
+        style={{
+          backgroundImage: "url('/bannersolenesite.jpeg')",
+          backgroundPosition: "center",
+        }}
       />
+
+      <section className="w-full flex justify-center px-6 py-6 bg-brand-bg">
+        <div className="w-full max-w-2xl text-center">
+          <h1 className="font-heading text-3xl md:text-5xl lg:text-6xl font-bold text-brand-text">
+            Moda feminina com presença e leveza
+          </h1>
+          <p className="text-sm md:text-base text-brand-muted mt-3">
+            Escolha sua peça, confirme pelo WhatsApp e receba com rapidez em Londrina.
+            Estilo elegante, minimalista e atual.
+          </p>
+          <div className="mt-6 flex justify-center">
+            <Link
+              href="/catalogo"
+              className="w-full sm:w-auto py-4 px-8 rounded-full bg-black text-white text-center"
+            >
+              Ver coleção
+            </Link>
+          </div>
+        </div>
+      </section>
 
       <TrustBar />
 
