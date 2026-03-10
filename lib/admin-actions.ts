@@ -25,7 +25,10 @@ import {
     updateAdminProductImage,
     uploadAdminProductImage,
 } from "@/services/admin-product.service";
-import { adjustCustomerStamps } from "@/services/admin-client.service";
+import {
+    adjustCustomerStamps,
+    createAdminCustomer,
+} from "@/services/admin-client.service";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 
 function parseBoolean(input: FormDataEntryValue | null): boolean {
@@ -189,6 +192,50 @@ export async function resetStampsAction(
         return { success: true as const };
     } catch {
         return { error: "Não foi possível resetar os selos." };
+    }
+}
+
+export async function createCustomerAction(formData: FormData) {
+    try {
+        await verifyAdminSession();
+
+        const name = String(formData.get("name") || "").trim();
+        const email = String(formData.get("email") || "").trim().toLowerCase();
+        const phone = String(formData.get("phone") || "").trim();
+        const stamps = Number(formData.get("stamps") || 0);
+        const referralStamps = Number(formData.get("referralStamps") || 0);
+
+        if (!name) {
+            return { error: "Nome é obrigatório." };
+        }
+
+        if (!email || !email.includes("@")) {
+            return { error: "E-mail inválido." };
+        }
+
+        if (!Number.isFinite(stamps) || stamps < 0) {
+            return { error: "Beijos fidelidade inválidos." };
+        }
+
+        if (!Number.isFinite(referralStamps) || referralStamps < 0) {
+            return { error: "Beijos indicação inválidos." };
+        }
+
+        const customer = await createAdminCustomer({
+            name,
+            email,
+            phone,
+            stamps,
+            referralStamps,
+        });
+
+        revalidatePath("/admin/clientes");
+        revalidatePath("/admin/dashboard");
+        revalidateAdminCache([CACHE_TAGS.adminCustomers, CACHE_TAGS.adminStats]);
+
+        return { success: true as const, customer };
+    } catch {
+        return { error: "Não foi possível cadastrar cliente." };
     }
 }
 
