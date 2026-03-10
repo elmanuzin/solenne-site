@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import AdminMenu from "@/components/admin/AdminMenu";
 
 export const metadata: Metadata = {
     title: "Admin | Solenne",
@@ -12,6 +13,7 @@ export default function AdminLayout({
 }) {
     return (
         <div className="admin-layout bg-brand-bg min-h-screen text-brand-text">
+            <AdminMenu />
             {children}
         </div>
     );

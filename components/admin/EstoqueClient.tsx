@@ -17,6 +17,7 @@ import {
 import {
     createProductAction,
     deleteProductAction,
+    importProductsCsvAction,
     removeProductImageAction,
     toggleProductAvailabilityAction,
     updateProductAction,
@@ -57,6 +58,13 @@ export default function EstoqueClient({
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [isMutating, setIsMutating] = useState(false);
+    const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+    const [csvResult, setCsvResult] = useState<{
+        imported: number;
+        skipped: number;
+        errors: Array<{ row: number; message: string }>;
+    } | null>(null);
+    const [csvMessage, setCsvMessage] = useState("");
 
     useEffect(() => {
         setProducts(initialProducts);
@@ -165,6 +173,12 @@ export default function EstoqueClient({
         setIsEditorOpen(true);
     }
 
+    function openCsvModal() {
+        setActionError("");
+        setCsvMessage("");
+        setIsCsvModalOpen(true);
+    }
+
     function openEditModal(product: ProductAdminItem) {
         setActionError("");
         setEditingProduct(product);
@@ -243,6 +257,38 @@ export default function EstoqueClient({
             router.refresh();
         } catch {
             setActionError("Não foi possível salvar o produto.");
+        } finally {
+            setIsMutating(false);
+        }
+    }
+
+    async function handleCsvImport(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (isBusy) return;
+
+        setActionError("");
+        setCsvMessage("");
+        setIsMutating(true);
+        try {
+            const formData = new FormData(event.currentTarget);
+            const result = await importProductsCsvAction(formData);
+
+            if (result?.error) {
+                setActionError(result.error);
+                return;
+            }
+
+            if (result?.result) {
+                setCsvResult(result.result);
+            }
+            if (result?.message) {
+                setCsvMessage(result.message);
+            }
+
+            setIsCsvModalOpen(false);
+            router.refresh();
+        } catch {
+            setActionError("Não foi possível importar o CSV.");
         } finally {
             setIsMutating(false);
         }
@@ -373,6 +419,14 @@ export default function EstoqueClient({
                         />
                     </div>
                     <button
+                        onClick={openCsvModal}
+                        disabled={isBusy}
+                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-brand-border bg-white text-brand-text font-semibold text-sm hover:bg-brand-bg transition-colors"
+                    >
+                        <Upload size={16} />
+                        Importar CSV
+                    </button>
+                    <button
                         onClick={openCreateModal}
                         disabled={isBusy}
                         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-accent text-white font-semibold text-sm hover:bg-brand-accent-hover transition-colors shadow-lg shadow-brand-accent/20"
@@ -386,6 +440,29 @@ export default function EstoqueClient({
             {actionError ? (
                 <div className="mb-6 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
                     {actionError}
+                </div>
+            ) : null}
+
+            {csvMessage ? (
+                <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-700">
+                    {csvMessage}
+                </div>
+            ) : null}
+
+            {csvResult ? (
+                <div className="mb-6 bg-white border border-brand-border rounded-xl px-4 py-3 text-sm text-brand-text space-y-2">
+                    <p className="font-semibold">
+                        Importação: {csvResult.imported} importados, {csvResult.skipped} duplicados ignorados.
+                    </p>
+                    {csvResult.errors.length > 0 ? (
+                        <ul className="list-disc pl-5 text-brand-muted space-y-1 max-h-40 overflow-y-auto">
+                            {csvResult.errors.map((error, index) => (
+                                <li key={`${error.row}-${index}`}>
+                                    Linha {error.row}: {error.message}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : null}
                 </div>
             ) : null}
 
@@ -735,6 +812,66 @@ export default function EstoqueClient({
                                         : editingProduct
                                             ? "Salvar alterações"
                                             : "Cadastrar produto"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            ) : null}
+
+            {isCsvModalOpen ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+                    <button
+                        onClick={() => setIsCsvModalOpen(false)}
+                        disabled={isBusy}
+                        className="absolute inset-0 bg-black/40"
+                        aria-label="Fechar"
+                    />
+                    <div className="relative z-10 w-full max-w-lg bg-white rounded-3xl border border-brand-border shadow-2xl">
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-brand-border">
+                            <h2 className="font-heading text-2xl text-brand-text">
+                                Importar CSV
+                            </h2>
+                            <button
+                                onClick={() => setIsCsvModalOpen(false)}
+                                disabled={isBusy}
+                                className="w-9 h-9 rounded-full border border-brand-border flex items-center justify-center"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleCsvImport} className="p-6 space-y-5">
+                            <div>
+                                <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
+                                    Arquivo CSV
+                                </label>
+                                <input
+                                    name="csvFile"
+                                    type="file"
+                                    accept=".csv,text/csv"
+                                    required
+                                    className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm"
+                                />
+                                <p className="text-xs text-brand-muted mt-2">
+                                    Colunas: nome, categoria, preco, tamanho, cor.
+                                </p>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCsvModalOpen(false)}
+                                    disabled={isBusy}
+                                    className="px-5 py-2.5 rounded-xl border border-brand-border text-brand-muted text-sm font-semibold"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isBusy}
+                                    className="px-6 py-2.5 rounded-xl bg-brand-accent text-white text-sm font-semibold hover:bg-brand-accent-hover disabled:opacity-50"
+                                >
+                                    {isBusy ? "Importando..." : "Importar CSV"}
                                 </button>
                             </div>
                         </form>

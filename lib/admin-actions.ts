@@ -16,6 +16,7 @@ import {
     createAdminProduct,
     deleteAdminProduct,
     getAdminProductById,
+    importAdminProductsFromCsv,
     removeAdminProductImageByUrl,
     resetAllAdminProductStock,
     setAdminProductAvailability,
@@ -29,6 +30,7 @@ import {
     adjustCustomerStamps,
     createAdminCustomer,
 } from "@/services/admin-client.service";
+import { updateSiteBanner } from "@/services/admin-banner.service";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 
 function parseBoolean(input: FormDataEntryValue | null): boolean {
@@ -70,6 +72,7 @@ function revalidateCatalogPaths(slug?: string) {
     if (slug) {
         revalidatePath(`/produto/${slug}`);
     }
+    revalidatePath("/admin/produtos");
     revalidatePath("/admin/estoque");
     revalidatePath("/admin/dashboard");
 }
@@ -336,6 +339,65 @@ export async function setAllStockAction(stock: number) {
         return { success: true as const };
     } catch {
         return { error: "Não foi possível aplicar o estoque para todos os produtos." };
+    }
+}
+
+export async function importProductsCsvAction(formData: FormData) {
+    try {
+        await verifyAdminSession();
+
+        const csvFile = formData.get("csvFile");
+        if (!(csvFile instanceof File) || csvFile.size <= 0) {
+            return { error: "Selecione um arquivo CSV válido." };
+        }
+
+        const result = await importAdminProductsFromCsv(csvFile);
+
+        revalidatePath("/admin/produtos");
+        revalidatePath("/admin/estoque");
+        revalidatePath("/admin/dashboard");
+        revalidatePath("/catalogo");
+        revalidatePath("/");
+        revalidateAdminCache([CACHE_TAGS.adminProducts]);
+
+        return {
+            success: true as const,
+            message: "Produtos importados com sucesso.",
+            result,
+        };
+    } catch (error) {
+        return {
+            error:
+                error instanceof Error
+                    ? error.message
+                    : "Não foi possível importar o CSV.",
+        };
+    }
+}
+
+export async function updateSiteBannerAction(formData: FormData) {
+    try {
+        await verifyAdminSession();
+
+        const bannerFile = formData.get("banner");
+        if (!(bannerFile instanceof File) || bannerFile.size <= 0) {
+            return { error: "Selecione uma imagem de banner válida." };
+        }
+
+        const bannerUrl = await updateSiteBanner(bannerFile);
+        revalidatePath("/");
+        revalidatePath("/admin/banner");
+        revalidatePath("/admin/dashboard");
+        revalidateAdminCache([CACHE_TAGS.siteBanner]);
+
+        return { success: true as const, bannerUrl };
+    } catch (error) {
+        return {
+            error:
+                error instanceof Error
+                    ? error.message
+                    : "Não foi possível atualizar o banner.",
+        };
     }
 }
 

@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_COOKIE, verifySession } from "@/lib/auth";
-import { uploadAdminProductImage } from "@/services/admin-product.service";
+import {
+    PRODUCT_IMAGE_ALLOWED_TYPES,
+    PRODUCT_IMAGE_MAX_SIZE_BYTES,
+    uploadAdminProductImage,
+} from "@/services/admin-product.service";
 
 export const runtime = "nodejs";
-
-const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024; // 8MB
 
 function sanitizeFolderName(value: string): string {
     const normalized = value.trim();
@@ -29,13 +31,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Imagem inválida." }, { status: 400 });
     }
 
-    if (!file.type.startsWith("image/")) {
+    const contentType = (file.type || "").toLowerCase();
+    if (!PRODUCT_IMAGE_ALLOWED_TYPES.has(contentType)) {
         return NextResponse.json({ error: "Formato de arquivo inválido." }, { status: 400 });
     }
 
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+    if (file.size > PRODUCT_IMAGE_MAX_SIZE_BYTES) {
         return NextResponse.json(
-            { error: "A imagem deve ter no máximo 8MB." },
+            { error: "A imagem deve ter no máximo 5MB." },
             { status: 400 }
         );
     }

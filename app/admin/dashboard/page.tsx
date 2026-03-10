@@ -7,6 +7,7 @@ import {
     BarChart3,
     Box,
     UserCircle,
+    ImageIcon,
 } from "lucide-react";
 import { adminLogoutAction } from "@/lib/admin-actions";
 import ChangePasswordForm from "@/components/admin/ChangePasswordForm";
@@ -57,7 +58,7 @@ export default async function AdminDashboardPage() {
             sub: `${totalStock} unidades em estoque`,
             icon: Package,
             color: "bg-blue-500/10 text-blue-400",
-            href: "/admin/estoque",
+            href: "/admin/produtos",
         },
         {
             label: "Clientes",
@@ -130,9 +131,9 @@ export default async function AdminDashboardPage() {
             </div>
 
             {/* Quick links */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 <Link
-                    href="/admin/estoque"
+                    href="/admin/produtos"
                     className="flex items-center gap-4 bg-white rounded-2xl border border-brand-border p-6 hover:border-brand-accent/40 hover:shadow-md transition-all group"
                 >
                     <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -165,6 +166,27 @@ export default async function AdminDashboardPage() {
                         </p>
                         <p className="text-sm text-brand-muted">
                             {stats.totalCustomers} clientes • {stats.totalStamps} selos
+                        </p>
+                    </div>
+                    <BarChart3
+                        size={18}
+                        className="ml-auto text-brand-muted/40 group-hover:text-brand-accent transition-colors"
+                    />
+                </Link>
+
+                <Link
+                    href="/admin/banner"
+                    className="flex items-center gap-4 bg-white rounded-2xl border border-brand-border p-6 hover:border-brand-accent/40 hover:shadow-md transition-all group"
+                >
+                    <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
+                        <ImageIcon size={22} className="text-amber-500" />
+                    </div>
+                    <div>
+                        <p className="text-base font-bold text-brand-text group-hover:text-brand-accent transition-colors">
+                            Gerenciar Banner
+                        </p>
+                        <p className="text-sm text-brand-muted">
+                            Atualize o banner da homepage
                         </p>
                     </div>
                     <BarChart3

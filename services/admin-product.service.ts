@@ -4,8 +4,16 @@ import { createSupabaseAdminClient } from "@/lib/supabase-admin";
 import { unstable_cache } from "next/cache";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import type { CategorySlug, SizeOption } from "@/types";
+import Papa from "papaparse";
 
 const PRODUCT_BUCKET = "produtos";
+export const PRODUCT_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+export const PRODUCT_IMAGE_ALLOWED_TYPES = new Set([
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+]);
 
 export interface AdminProductRecord {
     id: string;
@@ -60,6 +68,17 @@ interface ProdutoTamanhoRow {
     tamanho: string;
 }
 
+export interface CsvImportError {
+    row: number;
+    message: string;
+}
+
+export interface CsvImportResult {
+    imported: number;
+    skipped: number;
+    errors: CsvImportError[];
+}
+
 const CATEGORY_ALLOWED: CategorySlug[] = [
     "conjuntos",
     "body",
@@ -87,6 +106,31 @@ function normalizeCategory(value: string): CategorySlug {
         : "vestidos";
 }
 
+function normalizeCsvCategory(value: string): CategorySlug | null {
+    const normalized = value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+
+    const map: Record<string, CategorySlug> = {
+        conjunto: "conjuntos",
+        conjuntos: "conjuntos",
+        body: "body",
+        bodies: "body",
+        vestido: "vestidos",
+        vestidos: "vestidos",
+        saia: "saias",
+        saias: "saias",
+        cropped: "croppeds",
+        croppeds: "croppeds",
+        short: "shorts",
+        shorts: "shorts",
+    };
+
+    return map[normalized] || null;
+}
+
 function normalizeSizeToDb(size: SizeOption): "P" | "M" | "G" | "GG" | "UNICO" {
     if (size === "Único") return "UNICO";
     return size;
@@ -101,12 +145,64 @@ function normalizeSizeFromDb(size: string): SizeOption {
     return "P";
 }
 
+function parseCsvSizes(rawParts: string[]): SizeOption[] {
+    const values = rawParts
+        .flatMap((part) => part.split(","))
+        .map((size) => size.trim().toUpperCase())
+        .filter(Boolean);
+
+    const mapped = values
+        .map((size) => {
+            if (size === "UNICO" || size === "ÚNICO" || size === "U") return "Único";
+            if (size === "P" || size === "M" || size === "G" || size === "GG") {
+                return size;
+            }
+            return null;
+        })
+        .filter((size): size is SizeOption => Boolean(size));
+
+    const unique = Array.from(new Set(mapped));
+    return unique.length ? unique : ["P", "M", "G"];
+}
+
 function extractStoragePathFromPublicUrl(url: string): string | null {
     if (!url) return null;
     const marker = `/storage/v1/object/public/${PRODUCT_BUCKET}/`;
     const index = url.indexOf(marker);
     if (index === -1) return null;
     return decodeURIComponent(url.slice(index + marker.length));
+}
+
+async function ensureProductBucket() {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.storage.getBucket(PRODUCT_BUCKET);
+
+    if (data && !error) {
+        return;
+    }
+
+    const getBucketMessage = (error?.message || "").toLowerCase();
+    const bucketMissing =
+        !getBucketMessage ||
+        getBucketMessage.includes("not found") ||
+        getBucketMessage.includes("does not exist");
+
+    if (!bucketMissing) {
+        throw new Error("Falha ao validar bucket de imagens de produtos.");
+    }
+
+    const { error: createError } = await supabase.storage.createBucket(PRODUCT_BUCKET, {
+        public: true,
+        fileSizeLimit: PRODUCT_IMAGE_MAX_SIZE_BYTES,
+        allowedMimeTypes: Array.from(PRODUCT_IMAGE_ALLOWED_TYPES),
+    });
+
+    if (createError) {
+        const createMessage = (createError.message || "").toLowerCase();
+        if (!createMessage.includes("already exists")) {
+            throw new Error("Falha ao criar bucket de imagens de produtos.");
+        }
+    }
 }
 
 function mapProdutoRow(
@@ -403,11 +499,188 @@ export async function resetAllAdminProductStock(): Promise<void> {
     await setAllAdminProductStock(0);
 }
 
+function rowIsEmpty(row: string[]): boolean {
+    return row.every((value) => !value.trim());
+}
+
+function parseCsvPrice(raw: string): number | null {
+    const normalized = raw.replace(/\./g, "").replace(",", ".").trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed < 0) return null;
+    return parsed;
+}
+
+function buildDuplicateKey(name: string, color: string): string {
+    return `${name.trim().toLowerCase()}::${color.trim().toLowerCase()}`;
+}
+
+export async function importAdminProductsFromCsv(file: File): Promise<CsvImportResult> {
+    const csvContent = await file.text();
+    const parsed = Papa.parse<string[]>(csvContent, {
+        skipEmptyLines: "greedy",
+    });
+
+    const errors: CsvImportError[] = [];
+    if (parsed.errors.length > 0) {
+        parsed.errors.forEach((error) => {
+            errors.push({
+                row: Number(error.row || 0) + 1,
+                message: error.message || "Linha CSV inválida.",
+            });
+        });
+    }
+
+    const rows = (parsed.data || []).map((row) =>
+        row.map((cell) => String(cell ?? "").trim())
+    );
+
+    if (!rows.length) {
+        return { imported: 0, skipped: 0, errors };
+    }
+
+    let startIndex = 0;
+    const firstRow = rows[0].map((item) =>
+        item
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+    );
+    if (firstRow[0] === "nome" && firstRow[1] === "categoria" && firstRow[2] === "preco") {
+        startIndex = 1;
+    }
+
+    const supabase = createSupabaseAdminClient();
+    const { data: existingProducts, error: existingError } = await supabase
+        .from("produtos")
+        .select("nome, cor");
+
+    if (existingError) {
+        throw new Error("Falha ao carregar produtos existentes para importação.");
+    }
+
+    const existingKeys = new Set(
+        (existingProducts || []).map((product) =>
+            buildDuplicateKey(product.nome || "", product.cor || "")
+        )
+    );
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (let index = startIndex; index < rows.length; index += 1) {
+        const row = rows[index];
+        if (!row || !row.length || rowIsEmpty(row)) {
+            continue;
+        }
+
+        const lineNumber = index + 1;
+
+        const nome = row[0] || "";
+        const categoriaRaw = row[1] || "";
+        const precoRaw = row[2] || "";
+        const cor = row.length >= 4 ? row[row.length - 1] || "" : "";
+        const tamanhosRaw = row.length > 4 ? row.slice(3, -1) : row.slice(3, 4);
+
+        if (!nome || !categoriaRaw || !precoRaw) {
+            errors.push({
+                row: lineNumber,
+                message: "Campos obrigatórios ausentes (nome, categoria ou preço).",
+            });
+            continue;
+        }
+
+        const categoria = normalizeCsvCategory(categoriaRaw);
+        if (!categoria) {
+            errors.push({
+                row: lineNumber,
+                message: `Categoria inválida: "${categoriaRaw}".`,
+            });
+            continue;
+        }
+
+        const preco = parseCsvPrice(precoRaw);
+        if (preco === null) {
+            errors.push({
+                row: lineNumber,
+                message: `Preço inválido: "${precoRaw}".`,
+            });
+            continue;
+        }
+
+        const duplicateKey = buildDuplicateKey(nome, cor || "");
+        if (existingKeys.has(duplicateKey)) {
+            skipped += 1;
+            continue;
+        }
+
+        const sizes = parseCsvSizes(tamanhosRaw.length ? tamanhosRaw : ["P,M,G"]);
+
+        const { data: insertedProduct, error: insertError } = await supabase
+            .from("produtos")
+            .insert({
+                nome: nome.trim(),
+                categoria,
+                preco,
+                descricao: "",
+                estoque: 10,
+                cor: cor.trim(),
+                disponivel: true,
+                created_at: new Date().toISOString(),
+            })
+            .select("id")
+            .single();
+
+        if (insertError || !insertedProduct?.id) {
+            errors.push({
+                row: lineNumber,
+                message: "Falha ao inserir produto.",
+            });
+            continue;
+        }
+
+        const { error: sizesError } = await supabase.from("produto_tamanhos").insert(
+            sizes.map((size) => ({
+                produto_id: insertedProduct.id,
+                tamanho: normalizeSizeToDb(size),
+            }))
+        );
+
+        if (sizesError) {
+            await supabase.from("produtos").delete().eq("id", insertedProduct.id);
+            errors.push({
+                row: lineNumber,
+                message: "Falha ao inserir tamanhos do produto.",
+            });
+            continue;
+        }
+
+        existingKeys.add(duplicateKey);
+        imported += 1;
+    }
+
+    return {
+        imported,
+        skipped,
+        errors,
+    };
+}
+
 export async function uploadAdminProductImage(
     file: File,
     productId: string,
     productName: string
 ): Promise<string> {
+    if (file.size > PRODUCT_IMAGE_MAX_SIZE_BYTES) {
+        throw new Error("A imagem deve ter no máximo 5MB.");
+    }
+
+    const contentType = (file.type || "").toLowerCase();
+    if (!PRODUCT_IMAGE_ALLOWED_TYPES.has(contentType)) {
+        throw new Error("Formato inválido. Use JPG, JPEG, PNG ou WEBP.");
+    }
+
+    await ensureProductBucket();
     const supabase = createSupabaseAdminClient();
     const extension =
         file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";

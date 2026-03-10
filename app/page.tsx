@@ -4,18 +4,22 @@ import TrustBar from "@/components/ui/TrustBar";
 import ProductGrid from "@/components/catalog/ProductGrid";
 import { categories } from "@/lib/data";
 import { listFeaturedProducts } from "@/lib/catalog";
+import { getHomepageBannerUrl } from "@/services/admin-banner.service";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const featuredProducts = await listFeaturedProducts(8);
+  const [featuredProducts, heroBannerUrl] = await Promise.all([
+    listFeaturedProducts(8),
+    getHomepageBannerUrl(),
+  ]);
 
   return (
     <div className="pb-20">
       <section
         className="w-full min-h-[50vh] md:min-h-[80vh] flex items-center justify-center overflow-hidden bg-contain md:bg-cover bg-no-repeat bg-center"
         style={{
-          backgroundImage: "url('/bannersolenesite.jpeg')",
+          backgroundImage: `url("${heroBannerUrl}")`,
           backgroundPosition: "center",
         }}
       />

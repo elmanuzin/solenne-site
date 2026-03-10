@@ -3,6 +3,7 @@ export const CACHE_TAGS = {
     adminCustomers: "admin-customers",
     adminStats: "admin-stats",
     adminOrders: "admin-orders",
+    siteBanner: "site-banner",
 } as const;
 
 export type CacheTag = (typeof CACHE_TAGS)[keyof typeof CACHE_TAGS];

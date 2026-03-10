@@ -168,7 +168,7 @@ export default function ClientesClient({
                     className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-accent text-white text-sm font-semibold hover:bg-brand-accent-hover transition-colors"
                 >
                     <Plus size={16} />
-                    + Adicionar Cliente
+                    Adicionar Cliente
                 </button>
             </div>
 
