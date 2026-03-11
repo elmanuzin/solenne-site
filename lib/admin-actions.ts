@@ -31,7 +31,11 @@ import {
     createAdminCustomer,
 } from "@/services/admin-client.service";
 import { updateSiteBannerConfig } from "@/services/admin-banner.service";
-import { getAdminFinancialSummary } from "@/services/admin-analytics.service";
+import {
+    createSale,
+    getAdminFinancialSummary,
+    listSaleProducts,
+} from "@/services/admin-analytics.service";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { recalculatePopularProducts } from "@/lib/views";
 
@@ -520,6 +524,73 @@ export async function getFinancialAnalyticsAction() {
         return { success: true as const, summary };
     } catch {
         return { error: "Não foi possível carregar os dados financeiros." };
+    }
+}
+
+export async function listSaleProductsAction() {
+    try {
+        await verifyAdminSession();
+        const products = await listSaleProducts();
+        return { success: true as const, products };
+    } catch {
+        return { error: "Não foi possível carregar os produtos para venda." };
+    }
+}
+
+export async function createSaleAction(input: {
+    productId: string;
+    quantity: number;
+    paymentType: "pix" | "dinheiro" | "cartao" | "link_pagamento";
+    cardType?: "debito" | "credito" | "parcelado" | null;
+    installments?: number | null;
+}) {
+    try {
+        await verifyAdminSession();
+
+        const productId = String(input.productId || "").trim();
+        const quantity = Math.max(1, Math.trunc(Number(input.quantity || 1)));
+        const paymentType = input.paymentType;
+        const cardType = input.cardType || null;
+        const installments = input.installments ?? null;
+
+        if (!productId) {
+            return { error: "Selecione um produto para registrar a venda." };
+        }
+
+        if (!["pix", "dinheiro", "cartao", "link_pagamento"].includes(paymentType)) {
+            return { error: "Forma de pagamento inválida." };
+        }
+
+        if (paymentType === "cartao" && !cardType) {
+            return { error: "Selecione o tipo de cartão." };
+        }
+
+        if (paymentType === "cartao" && cardType === "parcelado") {
+            if (!installments || installments < 1) {
+                return { error: "Informe as parcelas para cartão parcelado." };
+            }
+        }
+
+        const result = await createSale({
+            productId,
+            quantity,
+            paymentType,
+            cardType,
+            installments,
+        });
+
+        revalidatePath("/admin/analytics");
+        revalidatePath("/admin/dashboard");
+        revalidateAdminCache([CACHE_TAGS.adminOrders, CACHE_TAGS.adminProducts]);
+
+        return { success: true as const, saleId: result.saleId };
+    } catch (error) {
+        return {
+            error:
+                error instanceof Error
+                    ? error.message
+                    : "Não foi possível registrar a venda.",
+        };
     }
 }
 

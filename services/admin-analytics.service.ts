@@ -33,6 +33,21 @@ export interface AdminFinancialSummary {
     recentSales: AdminRecentSaleRecord[];
 }
 
+export interface AdminSaleProductOption {
+    id: string;
+    name: string;
+    price: number;
+    cost: number;
+}
+
+export interface RegisterSaleInput {
+    productId: string;
+    quantity: number;
+    paymentType: FinancialPaymentType;
+    cardType?: "debito" | "credito" | "parcelado" | null;
+    installments?: number | null;
+}
+
 type Row = Record<string, unknown>;
 
 const EMPTY_SUMMARY: AdminFinancialSummary = {
@@ -275,10 +290,11 @@ export async function getAdminFinancialSummary(): Promise<AdminFinancialSummary>
             ]) ?? pickNumber(product, ["preco", "price"]) ?? 0;
 
         const unitCost = pickNumber(product, ["custo", "cost"]) ?? 0;
+        const itemUnitCost = pickNumber(item, ["custo", "cost"]);
 
         aggregate.revenue += unitPrice * quantity;
-        aggregate.cost += unitCost * quantity;
-        aggregate.profit += (unitPrice - unitCost) * quantity;
+        aggregate.cost += (itemUnitCost ?? unitCost) * quantity;
+        aggregate.profit += (unitPrice - (itemUnitCost ?? unitCost)) * quantity;
 
         const productName = pickString(product, ["nome", "name"]);
         if (productName) aggregate.productNames.add(productName);
@@ -374,6 +390,107 @@ export async function getAdminFinancialSummary(): Promise<AdminFinancialSummary>
         monthlySales,
         averageTicket: totalSales > 0 ? totalRevenue / totalSales : 0,
         totalSales,
-        recentSales: recentSales.slice(0, 12),
+        recentSales: recentSales.slice(0, 20),
     };
+}
+
+export async function listSaleProducts(): Promise<AdminSaleProductOption[]> {
+    const supabase = createSupabaseAdminClient();
+
+    const withCost = await supabase
+        .from("produtos")
+        .select("id, nome, preco, custo")
+        .order("nome", { ascending: true });
+
+    const productsData =
+        withCost.error && (withCost.error.message || "").toLowerCase().includes("custo")
+            ? await supabase
+                .from("produtos")
+                .select("id, nome, preco")
+                .order("nome", { ascending: true })
+            : withCost;
+
+    if (productsData.error) {
+        throw new Error("Falha ao carregar produtos para venda.");
+    }
+
+    return ((productsData.data || []) as Row[])
+        .map((row) => ({
+            id: pickString(row, ["id"]),
+            name: pickString(row, ["nome", "name"]),
+            price: Math.max(0, pickNumber(row, ["preco", "price"]) ?? 0),
+            cost: Math.max(0, pickNumber(row, ["custo", "cost"]) ?? 0),
+        }))
+        .filter((product) => product.id && product.name);
+}
+
+export async function createSale(input: RegisterSaleInput): Promise<{ saleId: string }> {
+    const supabase = createSupabaseAdminClient();
+
+    const quantity = Math.max(1, Math.trunc(Number(input.quantity || 1)));
+    const paymentType = input.paymentType;
+    const cardType = paymentType === "cartao" ? input.cardType || null : null;
+    const installments =
+        paymentType === "cartao" && cardType === "parcelado"
+            ? Math.max(1, Math.min(12, Math.trunc(Number(input.installments || 1))))
+            : null;
+
+    if (!input.productId) {
+        throw new Error("Selecione um produto válido.");
+    }
+
+    const withCost = await supabase
+        .from("produtos")
+        .select("id, nome, preco, custo")
+        .eq("id", input.productId)
+        .maybeSingle();
+
+    const productData =
+        withCost.error && (withCost.error.message || "").toLowerCase().includes("custo")
+            ? await supabase
+                .from("produtos")
+                .select("id, nome, preco")
+                .eq("id", input.productId)
+                .maybeSingle()
+            : withCost;
+
+    if (productData.error || !productData.data) {
+        throw new Error("Produto não encontrado para registrar venda.");
+    }
+
+    const product = productData.data as Row;
+    const price = Math.max(0, pickNumber(product, ["preco", "price"]) ?? 0);
+    const cost = Math.max(0, pickNumber(product, ["custo", "cost"]) ?? 0);
+
+    const { data: sale, error: saleError } = await supabase
+        .from("vendas")
+        .insert({
+            forma_pagamento: paymentType,
+            tipo_cartao: cardType,
+            parcelas: installments,
+            status: "pago",
+        })
+        .select("id")
+        .single();
+
+    if (saleError || !sale?.id) {
+        throw new Error("Não foi possível registrar a venda.");
+    }
+
+    const { error: itemError } = await supabase
+        .from("itens_venda")
+        .insert({
+            venda_id: sale.id,
+            produto_id: input.productId,
+            quantidade: quantity,
+            preco: price,
+            custo: cost,
+        });
+
+    if (itemError) {
+        await supabase.from("vendas").delete().eq("id", sale.id);
+        throw new Error("Não foi possível registrar o item da venda.");
+    }
+
+    return { saleId: sale.id };
 }

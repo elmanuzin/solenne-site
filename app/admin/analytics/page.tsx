@@ -1,12 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
-import { ArrowLeft, BarChart3, CircleDollarSign, ReceiptText, TrendingUp, Wallet } from "lucide-react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, BarChart3, CircleDollarSign, Plus, ReceiptText, TrendingUp, Wallet } from "lucide-react";
 import {
+    createSaleAction,
     getFinancialAnalyticsAction,
+    listSaleProductsAction,
     recalculatePopularProductsAction,
 } from "@/lib/admin-actions";
+import RegisterSaleModal, {
+    type RegisterSalePayload,
+    type RegisterSaleProduct,
+} from "@/components/admin/RegisterSaleModal";
 
 type PaymentType = "pix" | "dinheiro" | "cartao" | "link_pagamento" | "outro";
 type CardType = "debito" | "credito" | null;
@@ -91,41 +98,84 @@ function statusClass(status: string): string {
 }
 
 export default function AdminAnalyticsPage() {
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
     const [isLoadingFinancial, setIsLoadingFinancial] = useState(true);
+    const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+    const [isSavingSale, setIsSavingSale] = useState(false);
+    const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
     const [financialError, setFinancialError] = useState("");
     const [summary, setSummary] = useState<FinancialSummary>(EMPTY_SUMMARY);
+    const [products, setProducts] = useState<RegisterSaleProduct[]>([]);
 
-    useEffect(() => {
-        let isMounted = true;
+    const loadFinancialData = useCallback(async () => {
+        setIsLoadingFinancial(true);
+        setFinancialError("");
 
-        async function loadFinancialData() {
-            setIsLoadingFinancial(true);
-            setFinancialError("");
+        const result = await getFinancialAnalyticsAction();
 
-            const result = await getFinancialAnalyticsAction();
-
-            if (!isMounted) return;
-
-            if (result?.error) {
-                setFinancialError(result.error);
-                setSummary(EMPTY_SUMMARY);
-                setIsLoadingFinancial(false);
-                return;
-            }
-
-            setSummary(result?.summary || EMPTY_SUMMARY);
+        if (result?.error) {
+            setFinancialError(result.error);
+            setSummary(EMPTY_SUMMARY);
             setIsLoadingFinancial(false);
+            return;
         }
 
-        void loadFinancialData();
-
-        return () => {
-            isMounted = false;
-        };
+        setSummary(result?.summary || EMPTY_SUMMARY);
+        setIsLoadingFinancial(false);
     }, []);
+
+    const loadProducts = useCallback(async () => {
+        setIsLoadingProducts(true);
+
+        const result = await listSaleProductsAction();
+        if (result?.error) {
+            setError(result.error);
+            setProducts([]);
+            setIsLoadingProducts(false);
+            return;
+        }
+
+        setProducts(result?.products || []);
+        setIsLoadingProducts(false);
+    }, []);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            void loadFinancialData();
+            void loadProducts();
+        }, 0);
+
+        return () => window.clearTimeout(timer);
+    }, [loadFinancialData, loadProducts]);
+
+    async function handleRegisterSale(payload: RegisterSalePayload) {
+        setError("");
+        setSuccess("");
+        setIsSavingSale(true);
+
+        const result = await createSaleAction({
+            productId: payload.productId,
+            quantity: payload.quantity,
+            paymentType: payload.paymentType,
+            cardType: payload.cardType ?? undefined,
+            installments: payload.installments ?? undefined,
+        });
+
+        if (result?.error) {
+            setError(result.error);
+            setIsSavingSale(false);
+            return;
+        }
+
+        setSuccess("Venda registrada com sucesso.");
+        setIsSaleModalOpen(false);
+        await loadFinancialData();
+        router.refresh();
+        setIsSavingSale(false);
+    }
 
     function handleRecalculate() {
         setError("");
@@ -180,21 +230,32 @@ export default function AdminAnalyticsPage() {
 
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-            <div className="flex items-center gap-4 mb-8">
-                <Link
-                    href="/admin/dashboard"
-                    className="w-10 h-10 rounded-xl bg-white border border-brand-border flex items-center justify-center hover:bg-brand-bg transition-colors shadow-sm"
-                >
-                    <ArrowLeft size={16} className="text-brand-muted" />
-                </Link>
-                <div>
-                    <p className="text-xs uppercase tracking-widest text-brand-accent font-bold mb-1">
-                        Administração
-                    </p>
-                    <h1 className="font-heading text-3xl font-bold text-brand-text">
-                        Analytics
-                    </h1>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+                <div className="flex items-center gap-4">
+                    <Link
+                        href="/admin/dashboard"
+                        className="w-10 h-10 rounded-xl bg-white border border-brand-border flex items-center justify-center hover:bg-brand-bg transition-colors shadow-sm"
+                    >
+                        <ArrowLeft size={16} className="text-brand-muted" />
+                    </Link>
+                    <div>
+                        <p className="text-xs uppercase tracking-widest text-brand-accent font-bold mb-1">
+                            Administração
+                        </p>
+                        <h1 className="font-heading text-3xl font-bold text-brand-text">
+                            Analytics
+                        </h1>
+                    </div>
                 </div>
+
+                <button
+                    type="button"
+                    onClick={() => setIsSaleModalOpen(true)}
+                    className="inline-flex items-center justify-center gap-2 bg-brand-accent text-white px-4 py-2.5 rounded-xl hover:bg-brand-accent-hover text-sm font-semibold"
+                >
+                    <Plus size={16} />
+                    + Registrar venda
+                </button>
             </div>
 
             {error ? (
@@ -340,6 +401,15 @@ export default function AdminAnalyticsPage() {
                     {isPending ? "Recalculando..." : "Recalcular produtos populares"}
                 </button>
             </div>
+
+            <RegisterSaleModal
+                isOpen={isSaleModalOpen}
+                isSubmitting={isSavingSale}
+                isLoadingProducts={isLoadingProducts}
+                products={products}
+                onClose={() => setIsSaleModalOpen(false)}
+                onSubmit={handleRegisterSale}
+            />
         </div>
     );
 }
