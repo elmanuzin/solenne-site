@@ -55,6 +55,7 @@ type VariantPayload = {
     sizes: Array<"P" | "M" | "G" | "GG" | "Único">;
     images: string[];
 };
+const MAX_VARIANT_IMAGES = 5;
 
 function parseVariantsFromForm(formData: FormData): VariantPayload[] {
     const raw = String(formData.get("variantsJson") || "").trim();
@@ -93,7 +94,7 @@ function parseVariantsFromForm(formData: FormData): VariantPayload[] {
                                   .map((url) => String(url || "").trim())
                                   .filter(Boolean)
                           )
-                      )
+                      ).slice(0, MAX_VARIANT_IMAGES)
                     : [];
 
                 return { color, stock, sizes, images };

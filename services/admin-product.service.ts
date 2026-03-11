@@ -8,6 +8,7 @@ import Papa from "papaparse";
 
 const PRODUCT_BUCKET = "produtos";
 export const PRODUCT_IMAGE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_VARIANT_IMAGES = 5;
 export const PRODUCT_IMAGE_ALLOWED_TYPES = new Set([
     "image/jpeg",
     "image/jpg",
@@ -581,7 +582,10 @@ async function syncProductVariantsAndImages(
             createdVariantIds.push({
                 id: createdVariant.id,
                 color,
-                images: variant.images || [],
+                images: Array.from(new Set(variant.images || [])).slice(
+                    0,
+                    MAX_VARIANT_IMAGES
+                ),
             });
         }
 
@@ -703,7 +707,10 @@ export async function createAdminProduct(
             color: variant.color.trim(),
             stock: parseSafeStock(variant.stock),
             sizes: Array.from(new Set(variant.sizes || [])),
-            images: variant.images || [],
+            images: Array.from(new Set(variant.images || [])).slice(
+                0,
+                MAX_VARIANT_IMAGES
+            ),
         }))
         .filter((variant) => Boolean(variant.color));
     const primaryVariant = normalizedVariants[0];
@@ -774,7 +781,10 @@ export async function updateAdminProduct(
             color: variant.color.trim(),
             stock: parseSafeStock(variant.stock),
             sizes: Array.from(new Set(variant.sizes || [])),
-            images: variant.images || [],
+            images: Array.from(new Set(variant.images || [])).slice(
+                0,
+                MAX_VARIANT_IMAGES
+            ),
         }))
         .filter((variant) => Boolean(variant.color));
     const primaryVariant = normalizedVariants[0];

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -53,6 +53,7 @@ interface ProductAdminItem {
 }
 
 const SIZE_OPTIONS: SizeOption[] = ["P", "M", "G", "GG", "Único"];
+const MAX_VARIANT_IMAGES = 5;
 
 type VariantFormRow = {
     id: string;
@@ -60,6 +61,12 @@ type VariantFormRow = {
     stock: number;
     sizes: SizeOption[];
     images: string[];
+};
+
+type VariantPendingImage = {
+    id: string;
+    file: File;
+    previewUrl: string;
 };
 
 export default function EstoqueClient({
@@ -76,7 +83,9 @@ export default function EstoqueClient({
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [variantRows, setVariantRows] = useState<VariantFormRow[]>([]);
-    const [variantFiles, setVariantFiles] = useState<Record<string, File[]>>({});
+    const [variantFiles, setVariantFiles] = useState<
+        Record<string, VariantPendingImage[]>
+    >({});
     const [isMutating, setIsMutating] = useState(false);
     const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
     const [csvResult, setCsvResult] = useState<{
@@ -85,10 +94,23 @@ export default function EstoqueClient({
         errors: Array<{ row: number; message: string }>;
     } | null>(null);
     const [csvMessage, setCsvMessage] = useState("");
+    const variantFilesRef = useRef<Record<string, VariantPendingImage[]>>({});
 
     useEffect(() => {
         setProducts(initialProducts);
     }, [initialProducts]);
+
+    useEffect(() => {
+        variantFilesRef.current = variantFiles;
+    }, [variantFiles]);
+
+    useEffect(() => {
+        return () => {
+            Object.values(variantFilesRef.current).forEach((images) => {
+                images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+            });
+        };
+    }, []);
 
     const filteredProducts = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -114,6 +136,23 @@ export default function EstoqueClient({
 
     const isBusy = isMutating || isUploadingImage;
 
+    function clearVariantPendingImages() {
+        setVariantFiles((current) => {
+            Object.values(current).forEach((images) => {
+                images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+            });
+            return {};
+        });
+    }
+
+    function closeEditorModal() {
+        if (isBusy) return;
+        setIsEditorOpen(false);
+        setEditingProduct(null);
+        setUploadProgress(null);
+        clearVariantPendingImages();
+    }
+
     function createVariantRow(
         partial?: Partial<VariantFormRow>
     ): VariantFormRow {
@@ -129,7 +168,7 @@ export default function EstoqueClient({
                 partial?.sizes && partial.sizes.length
                     ? partial.sizes
                     : ["P", "M", "G"],
-            images: partial?.images || [],
+            images: (partial?.images || []).slice(0, MAX_VARIANT_IMAGES),
         };
     }
 
@@ -218,7 +257,7 @@ export default function EstoqueClient({
         setActionError("");
         setEditingProduct(null);
         setVariantRows([createVariantRow()]);
-        setVariantFiles({});
+        clearVariantPendingImages();
         setIsEditorOpen(true);
     }
 
@@ -250,7 +289,7 @@ export default function EstoqueClient({
                       }),
                   ];
         setVariantRows(fromVariants);
-        setVariantFiles({});
+        clearVariantPendingImages();
         setIsEditorOpen(true);
     }
 
@@ -259,12 +298,15 @@ export default function EstoqueClient({
     }
 
     function removeVariantRow(rowId: string) {
+        if (variantRows.length <= 1) return;
         setVariantRows((current) => {
-            if (current.length <= 1) return current;
             return current.filter((row) => row.id !== rowId);
         });
         setVariantFiles((current) => {
             const next = { ...current };
+            (next[rowId] || []).forEach((image) =>
+                URL.revokeObjectURL(image.previewUrl)
+            );
             delete next[rowId];
             return next;
         });
@@ -294,9 +336,63 @@ export default function EstoqueClient({
 
     function handleVariantFilesChange(rowId: string, files: FileList | null) {
         const selectedFiles = files ? Array.from(files) : [];
-        setVariantFiles((current) => ({
+        if (!selectedFiles.length) return;
+
+        const currentVariant = variantRows.find((row) => row.id === rowId);
+        if (!currentVariant) return;
+
+        setVariantFiles((current) => {
+            const currentPending = current[rowId] || [];
+            const remainingSlots =
+                MAX_VARIANT_IMAGES -
+                currentVariant.images.length -
+                currentPending.length;
+
+            if (remainingSlots <= 0) {
+                alert("Máximo de 5 imagens por cor");
+                return current;
+            }
+
+            const filesToAdd = selectedFiles.slice(0, remainingSlots);
+            if (selectedFiles.length > remainingSlots) {
+                alert("Máximo de 5 imagens por cor");
+            }
+
+            const pendingToAdd = filesToAdd.map((file) => ({
+                id:
+                    typeof crypto !== "undefined" && "randomUUID" in crypto
+                        ? crypto.randomUUID()
+                        : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                file,
+                previewUrl: URL.createObjectURL(file),
+            }));
+
+            return {
+                ...current,
+                [rowId]: [...currentPending, ...pendingToAdd],
+            };
+        });
+    }
+
+    function removeVariantPendingImage(rowId: string, imageId: string) {
+        setVariantFiles((current) => {
+            const rowImages = current[rowId] || [];
+            const removedImage = rowImages.find((image) => image.id === imageId);
+            if (removedImage) {
+                URL.revokeObjectURL(removedImage.previewUrl);
+            }
+
+            return {
+                ...current,
+                [rowId]: rowImages.filter((image) => image.id !== imageId),
+            };
+        });
+    }
+
+    function removeVariantPersistedImage(rowId: string, imageUrl: string) {
+        updateVariantRow(rowId, (current) => ({
             ...current,
-            [rowId]: selectedFiles,
+            images: current.images.filter((url) => url !== imageUrl),
         }));
     }
 
@@ -319,7 +415,10 @@ export default function EstoqueClient({
                 color: variant.color.trim(),
                 stock: Math.max(0, Math.trunc(Number(variant.stock || 0))),
                 sizes: Array.from(new Set(variant.sizes)),
-                images: variant.images || [],
+                images: Array.from(new Set(variant.images || [])).slice(
+                    0,
+                    MAX_VARIANT_IMAGES
+                ),
             }))
             .filter((variant) => variant.color && variant.sizes.length > 0);
 
@@ -349,9 +448,9 @@ export default function EstoqueClient({
             const filesToUpload = [
                 ...globalFiles.map((file) => ({ variantId: null as string | null, file })),
                 ...normalizedVariants.flatMap((variant) =>
-                    (variantFiles[variant.id] || []).map((file) => ({
+                    (variantFiles[variant.id] || []).map((image) => ({
                         variantId: variant.id,
-                        file,
+                        file: image.file,
                     }))
                 ),
             ];
@@ -448,7 +547,7 @@ export default function EstoqueClient({
             setIsEditorOpen(false);
             setEditingProduct(null);
             setVariantRows([]);
-            setVariantFiles({});
+            clearVariantPendingImages();
             setUploadProgress(null);
             router.refresh();
         } catch {
@@ -787,7 +886,7 @@ export default function EstoqueClient({
             {isEditorOpen ? (
                 <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
                     <button
-                        onClick={() => setIsEditorOpen(false)}
+                        onClick={closeEditorModal}
                         disabled={isBusy}
                         className="absolute inset-0 bg-black/40"
                         aria-label="Fechar"
@@ -798,7 +897,7 @@ export default function EstoqueClient({
                                 {editingProduct ? "Editar Produto" : "Novo Produto"}
                             </h2>
                             <button
-                                onClick={() => setIsEditorOpen(false)}
+                                onClick={closeEditorModal}
                                 disabled={isBusy}
                                 className="w-9 h-9 rounded-full border border-brand-border flex items-center justify-center"
                             >
@@ -992,13 +1091,14 @@ export default function EstoqueClient({
                                                 <input
                                                     type="file"
                                                     multiple
-                                                    accept="image/jpeg,image/jpg,image/png,image/webp"
-                                                    onChange={(event) =>
+                                                    accept="image/*"
+                                                    onChange={(event) => {
                                                         handleVariantFilesChange(
                                                             variant.id,
                                                             event.target.files
-                                                        )
-                                                    }
+                                                        );
+                                                        event.currentTarget.value = "";
+                                                    }}
                                                     className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm"
                                                 />
                                                 <p className="text-xs text-brand-muted mt-2">
@@ -1008,7 +1108,63 @@ export default function EstoqueClient({
                                                     {variantFiles[variant.id]?.length
                                                         ? ` + ${variantFiles[variant.id].length} nova(s) selecionada(s).`
                                                         : ""}
+                                                    {` (máximo ${MAX_VARIANT_IMAGES})`}
                                                 </p>
+                                                {variant.images.length > 0 ||
+                                                (variantFiles[variant.id] || []).length > 0 ? (
+                                                    <div className="mt-3 grid grid-cols-5 gap-2">
+                                                        {variant.images.map((imageUrl, imageIndex) => (
+                                                            <div
+                                                                key={`${variant.id}-saved-${imageIndex}`}
+                                                                className="relative aspect-square overflow-hidden rounded-md border border-brand-border"
+                                                            >
+                                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                                <img
+                                                                    src={imageUrl}
+                                                                    alt={`${variant.color} ${imageIndex + 1}`}
+                                                                    className="h-full w-full object-cover"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        removeVariantPersistedImage(
+                                                                            variant.id,
+                                                                            imageUrl
+                                                                        )
+                                                                    }
+                                                                    className="absolute right-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white"
+                                                                >
+                                                                    Remover
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                        {(variantFiles[variant.id] || []).map((image) => (
+                                                            <div
+                                                                key={image.id}
+                                                                className="relative aspect-square overflow-hidden rounded-md border border-brand-border"
+                                                            >
+                                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                                <img
+                                                                    src={image.previewUrl}
+                                                                    alt={`Prévia ${variant.color}`}
+                                                                    className="h-full w-full object-cover"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        removeVariantPendingImage(
+                                                                            variant.id,
+                                                                            image.id
+                                                                        )
+                                                                    }
+                                                                    className="absolute right-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white"
+                                                                >
+                                                                    Remover
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : null}
                                             </div>
                                         </div>
                                     ))}
