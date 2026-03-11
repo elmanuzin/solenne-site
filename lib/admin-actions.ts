@@ -31,6 +31,7 @@ import {
     createAdminCustomer,
 } from "@/services/admin-client.service";
 import { updateSiteBannerConfig } from "@/services/admin-banner.service";
+import { getAdminFinancialSummary } from "@/services/admin-analytics.service";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 import { recalculatePopularProducts } from "@/lib/views";
 
@@ -509,6 +510,16 @@ export async function recalculatePopularProductsAction() {
         return { success: true as const, updated: result.updated };
     } catch {
         return { error: "Não foi possível recalcular os produtos populares." };
+    }
+}
+
+export async function getFinancialAnalyticsAction() {
+    try {
+        await verifyAdminSession();
+        const summary = await getAdminFinancialSummary();
+        return { success: true as const, summary };
+    } catch {
+        return { error: "Não foi possível carregar os dados financeiros." };
     }
 }
 

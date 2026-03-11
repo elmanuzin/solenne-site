@@ -1,14 +1,131 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
-import { ArrowLeft, BarChart3 } from "lucide-react";
-import { recalculatePopularProductsAction } from "@/lib/admin-actions";
+import { useEffect, useState, useTransition } from "react";
+import { ArrowLeft, BarChart3, CircleDollarSign, ReceiptText, TrendingUp, Wallet } from "lucide-react";
+import {
+    getFinancialAnalyticsAction,
+    recalculatePopularProductsAction,
+} from "@/lib/admin-actions";
+
+type PaymentType = "pix" | "dinheiro" | "cartao" | "link_pagamento" | "outro";
+type CardType = "debito" | "credito" | null;
+
+type RecentSale = {
+    id: string;
+    createdAt: string;
+    productLabel: string;
+    paymentType: PaymentType;
+    cardType: CardType;
+    installments: number | null;
+    value: number;
+    cost: number;
+    profit: number;
+    status: string;
+};
+
+type FinancialSummary = {
+    totalRevenue: number;
+    totalProfit: number;
+    monthlySales: number;
+    averageTicket: number;
+    totalSales: number;
+    recentSales: RecentSale[];
+};
+
+const EMPTY_SUMMARY: FinancialSummary = {
+    totalRevenue: 0,
+    totalProfit: 0,
+    monthlySales: 0,
+    averageTicket: 0,
+    totalSales: 0,
+    recentSales: [],
+};
+
+function formatCurrency(value: number): string {
+    return new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+    }).format(Number.isFinite(value) ? value : 0);
+}
+
+function formatDate(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function formatPaymentLabel(
+    paymentType: PaymentType,
+    cardType: CardType,
+    installments: number | null
+): string {
+    if (paymentType === "pix") return "Pix";
+    if (paymentType === "dinheiro") return "Dinheiro";
+    if (paymentType === "link_pagamento") return "Link de pagamento";
+    if (paymentType !== "cartao") return "Outro";
+    if (cardType === "debito") return "Cartão débito";
+    if (cardType === "credito") {
+        const parcelas = installments && installments > 1 ? `${installments}x` : "1x";
+        return `Cartão crédito (${parcelas})`;
+    }
+
+    return "Cartão";
+}
+
+function statusClass(status: string): string {
+    const normalized = (status || "").toLowerCase();
+    if (normalized === "pago" || normalized === "concluido" || normalized === "entregue") {
+        return "bg-emerald-100 text-emerald-700";
+    }
+    if (normalized === "cancelado" || normalized === "estornado") {
+        return "bg-red-100 text-red-700";
+    }
+    return "bg-amber-100 text-amber-700";
+}
 
 export default function AdminAnalyticsPage() {
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    const [isLoadingFinancial, setIsLoadingFinancial] = useState(true);
+    const [financialError, setFinancialError] = useState("");
+    const [summary, setSummary] = useState<FinancialSummary>(EMPTY_SUMMARY);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function loadFinancialData() {
+            setIsLoadingFinancial(true);
+            setFinancialError("");
+
+            const result = await getFinancialAnalyticsAction();
+
+            if (!isMounted) return;
+
+            if (result?.error) {
+                setFinancialError(result.error);
+                setSummary(EMPTY_SUMMARY);
+                setIsLoadingFinancial(false);
+                return;
+            }
+
+            setSummary(result?.summary || EMPTY_SUMMARY);
+            setIsLoadingFinancial(false);
+        }
+
+        void loadFinancialData();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     function handleRecalculate() {
         setError("");
@@ -29,6 +146,37 @@ export default function AdminAnalyticsPage() {
             );
         });
     }
+
+    const financialCards = [
+        {
+            label: "Faturamento total",
+            value: formatCurrency(summary.totalRevenue),
+            sub: `${summary.totalSales} venda(s) no total`,
+            icon: CircleDollarSign,
+            color: "bg-emerald-50 text-emerald-600",
+        },
+        {
+            label: "Lucro total",
+            value: formatCurrency(summary.totalProfit),
+            sub: "preço - custo",
+            icon: TrendingUp,
+            color: "bg-blue-50 text-blue-600",
+        },
+        {
+            label: "Vendas do mês",
+            value: String(summary.monthlySales),
+            sub: "vendas registradas no mês atual",
+            icon: ReceiptText,
+            color: "bg-amber-50 text-amber-600",
+        },
+        {
+            label: "Ticket médio",
+            value: formatCurrency(summary.averageTicket),
+            sub: "média por venda",
+            icon: Wallet,
+            color: "bg-violet-50 text-violet-600",
+        },
+    ];
 
     return (
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
@@ -60,6 +208,114 @@ export default function AdminAnalyticsPage() {
                     {success}
                 </div>
             ) : null}
+
+            {financialError ? (
+                <div className="mb-6 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+                    {financialError}
+                </div>
+            ) : null}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {financialCards.map((card) => (
+                    <div
+                        key={card.label}
+                        className="bg-white rounded-2xl border border-brand-border p-6 shadow-sm"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <span className="text-xs text-brand-muted uppercase tracking-widest font-bold">
+                                {card.label}
+                            </span>
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${card.color}`}>
+                                <card.icon size={18} />
+                            </div>
+                        </div>
+                        <p className="text-2xl font-bold text-brand-text">
+                            {isLoadingFinancial ? "..." : card.value}
+                        </p>
+                        <p className="text-xs text-brand-muted mt-1 font-medium">{card.sub}</p>
+                    </div>
+                ))}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-brand-border overflow-hidden shadow-sm mb-8">
+                <div className="px-5 py-4 border-b border-brand-border bg-brand-bg/35">
+                    <p className="text-xs uppercase tracking-widest text-brand-muted font-bold">
+                        Vendas recentes
+                    </p>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[980px] text-left">
+                        <thead>
+                            <tr className="border-b border-brand-border bg-brand-bg/35">
+                                <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted">Data</th>
+                                <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted">Produto</th>
+                                <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted">Pagamento</th>
+                                <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted text-right">Valor</th>
+                                <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted text-right">Custo</th>
+                                <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted text-right">Lucro</th>
+                                <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {!isLoadingFinancial && summary.recentSales.map((sale) => (
+                                <tr key={sale.id} className="border-b border-brand-border last:border-0">
+                                    <td className="px-5 py-4 text-sm text-brand-text">
+                                        {formatDate(sale.createdAt)}
+                                    </td>
+                                    <td className="px-5 py-4 text-sm text-brand-text">
+                                        {sale.productLabel}
+                                    </td>
+                                    <td className="px-5 py-4 text-sm text-brand-text">
+                                        {formatPaymentLabel(
+                                            sale.paymentType,
+                                            sale.cardType,
+                                            sale.installments
+                                        )}
+                                    </td>
+                                    <td className="px-5 py-4 text-sm text-brand-text text-right font-semibold">
+                                        {formatCurrency(sale.value)}
+                                    </td>
+                                    <td className="px-5 py-4 text-sm text-brand-text text-right">
+                                        {formatCurrency(sale.cost)}
+                                    </td>
+                                    <td className="px-5 py-4 text-sm text-right font-semibold text-brand-text">
+                                        {formatCurrency(sale.profit)}
+                                    </td>
+                                    <td className="px-5 py-4">
+                                        <span
+                                            className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${statusClass(
+                                                sale.status
+                                            )}`}
+                                        >
+                                            {sale.status || "pendente"}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                            {!isLoadingFinancial && !summary.recentSales.length ? (
+                                <tr>
+                                    <td
+                                        colSpan={7}
+                                        className="px-5 py-10 text-center text-sm text-brand-muted"
+                                    >
+                                        Nenhuma venda cadastrada ainda.
+                                    </td>
+                                </tr>
+                            ) : null}
+                            {isLoadingFinancial ? (
+                                <tr>
+                                    <td
+                                        colSpan={7}
+                                        className="px-5 py-10 text-center text-sm text-brand-muted"
+                                    >
+                                        Carregando dados financeiros...
+                                    </td>
+                                </tr>
+                            ) : null}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
             <div className="bg-white rounded-2xl border border-brand-border p-6 shadow-sm">
                 <div className="flex items-center gap-3 mb-4">
