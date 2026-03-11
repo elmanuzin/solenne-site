@@ -41,9 +41,26 @@ interface ProductAdminItem {
     newArrival: boolean;
     bestSeller: boolean;
     isLancamento: boolean;
+    variants: Array<{
+        id: string;
+        color: string;
+        stock: number;
+        available: boolean;
+        sizes: SizeOption[];
+        images: string[];
+    }>;
+    images: string[];
 }
 
 const SIZE_OPTIONS: SizeOption[] = ["P", "M", "G", "GG", "Único"];
+
+type VariantFormRow = {
+    id: string;
+    color: string;
+    stock: number;
+    sizes: SizeOption[];
+    images: string[];
+};
 
 export default function EstoqueClient({
     initialProducts,
@@ -58,6 +75,8 @@ export default function EstoqueClient({
     const [actionError, setActionError] = useState("");
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [variantRows, setVariantRows] = useState<VariantFormRow[]>([]);
+    const [variantFiles, setVariantFiles] = useState<Record<string, File[]>>({});
     const [isMutating, setIsMutating] = useState(false);
     const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
     const [csvResult, setCsvResult] = useState<{
@@ -95,20 +114,55 @@ export default function EstoqueClient({
 
     const isBusy = isMutating || isUploadingImage;
 
+    function createVariantRow(
+        partial?: Partial<VariantFormRow>
+    ): VariantFormRow {
+        return {
+            id:
+                partial?.id ||
+                (typeof crypto !== "undefined" && "randomUUID" in crypto
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random().toString(36).slice(2)}`),
+            color: partial?.color || "",
+            stock: typeof partial?.stock === "number" ? partial.stock : 0,
+            sizes:
+                partial?.sizes && partial.sizes.length
+                    ? partial.sizes
+                    : ["P", "M", "G"],
+            images: partial?.images || [],
+        };
+    }
+
     function validateProductForm(formData: FormData): string | null {
         const name = String(formData.get("name") || "").trim();
         const color = String(formData.get("color") || "").trim();
         const description = String(formData.get("description") || "").trim();
         const price = Number(formData.get("price") || 0);
-        const stock = Number(formData.get("stock") || 0);
         const sizes = formData.getAll("sizes");
+        const validVariants = variantRows
+            .map((variant) => ({
+                color: variant.color.trim(),
+                stock: Number(variant.stock || 0),
+                sizes: variant.sizes,
+            }))
+            .filter((variant) => variant.color && variant.sizes.length > 0);
 
         if (!name || name.length < 2) return "Informe um nome válido para o produto.";
-        if (!color || color.length < 2) return "Informe uma cor válida.";
+        if (!validVariants.length && (!color || color.length < 2)) {
+            return "Informe ao menos uma cor válida.";
+        }
         if (!description || description.length < 5) return "Informe uma descrição válida.";
         if (!Number.isFinite(price) || price < 0) return "Informe um preço válido.";
-        if (!Number.isInteger(stock) || stock < 0) return "Informe um estoque válido.";
-        if (!sizes.length) return "Selecione ao menos um tamanho.";
+        if (validVariants.length) {
+            const hasInvalidStock = validVariants.some(
+                (variant) => !Number.isInteger(variant.stock) || variant.stock < 0
+            );
+            if (hasInvalidStock) return "Informe estoque válido para cada cor.";
+        } else {
+            const stock = Number(formData.get("stock") || 0);
+            if (!Number.isInteger(stock) || stock < 0) return "Informe um estoque válido.";
+            if (!sizes.length) return "Selecione ao menos um tamanho.";
+        }
 
         return null;
     }
@@ -171,6 +225,8 @@ export default function EstoqueClient({
     function openCreateModal() {
         setActionError("");
         setEditingProduct(null);
+        setVariantRows([createVariantRow()]);
+        setVariantFiles({});
         setIsEditorOpen(true);
     }
 
@@ -183,7 +239,73 @@ export default function EstoqueClient({
     function openEditModal(product: ProductAdminItem) {
         setActionError("");
         setEditingProduct(product);
+        const fromVariants =
+            product.variants?.length > 0
+                ? product.variants.map((variant) =>
+                      createVariantRow({
+                          color: variant.color,
+                          stock: variant.stock,
+                          sizes: variant.sizes,
+                          images: variant.images || [],
+                      })
+                  )
+                : [
+                      createVariantRow({
+                          color: product.color,
+                          stock: product.stock,
+                          sizes: product.sizes,
+                          images: product.image ? [product.image] : [],
+                      }),
+                  ];
+        setVariantRows(fromVariants);
+        setVariantFiles({});
         setIsEditorOpen(true);
+    }
+
+    function addVariantRow() {
+        setVariantRows((current) => [...current, createVariantRow()]);
+    }
+
+    function removeVariantRow(rowId: string) {
+        setVariantRows((current) => {
+            if (current.length <= 1) return current;
+            return current.filter((row) => row.id !== rowId);
+        });
+        setVariantFiles((current) => {
+            const next = { ...current };
+            delete next[rowId];
+            return next;
+        });
+    }
+
+    function updateVariantRow(
+        rowId: string,
+        updater: (current: VariantFormRow) => VariantFormRow
+    ) {
+        setVariantRows((current) =>
+            current.map((row) => (row.id === rowId ? updater(row) : row))
+        );
+    }
+
+    function toggleVariantSize(rowId: string, size: SizeOption) {
+        updateVariantRow(rowId, (row) => {
+            const selected = row.sizes.includes(size);
+            const nextSizes = selected
+                ? row.sizes.filter((item) => item !== size)
+                : [...row.sizes, size];
+            return {
+                ...row,
+                sizes: nextSizes.length ? nextSizes : row.sizes,
+            };
+        });
+    }
+
+    function handleVariantFilesChange(rowId: string, files: FileList | null) {
+        const selectedFiles = files ? Array.from(files) : [];
+        setVariantFiles((current) => ({
+            ...current,
+            [rowId]: selectedFiles,
+        }));
     }
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -199,32 +321,112 @@ export default function EstoqueClient({
             return;
         }
 
+        const normalizedVariants = variantRows
+            .map((variant) => ({
+                id: variant.id,
+                color: variant.color.trim(),
+                stock: Math.max(0, Math.trunc(Number(variant.stock || 0))),
+                sizes: Array.from(new Set(variant.sizes)),
+                images: variant.images || [],
+            }))
+            .filter((variant) => variant.color && variant.sizes.length > 0);
+
+        if (!normalizedVariants.length) {
+            setActionError("Cadastre ao menos uma cor com tamanhos para o produto.");
+            return;
+        }
+
         if (editingProduct) {
             formData.set("productId", editingProduct.id);
         }
 
-        const imageFile = formData.get("image");
-        if (imageFile instanceof File && imageFile.size > 0) {
-            try {
+        const firstVariant = normalizedVariants[0];
+        const totalStock = normalizedVariants.reduce((sum, variant) => sum + variant.stock, 0);
+        formData.set("color", firstVariant.color);
+        formData.set("stock", String(totalStock));
+        formData.delete("sizes");
+        firstVariant.sizes.forEach((size) => formData.append("sizes", size));
+
+        try {
+            const globalFiles = formData
+                .getAll("images")
+                .filter(
+                    (entry): entry is File =>
+                        entry instanceof File && entry.size > 0
+                );
+
+            const filesToUpload = [
+                ...globalFiles.map((file) => ({ variantId: null as string | null, file })),
+                ...normalizedVariants.flatMap((variant) =>
+                    (variantFiles[variant.id] || []).map((file) => ({
+                        variantId: variant.id,
+                        file,
+                    }))
+                ),
+            ];
+
+            const uploadedUrls: string[] = [];
+            if (filesToUpload.length > 0) {
                 setIsUploadingImage(true);
                 setUploadProgress(0);
-                const uploadedImageUrl = await uploadImageWithProgress(
-                    imageFile,
-                    editingProduct?.id || null,
-                    String(formData.get("name") || "produto")
-                );
-                formData.set("uploadedImageUrl", uploadedImageUrl);
-                formData.delete("image");
-            } catch (error) {
-                setActionError(
-                    error instanceof Error
-                        ? error.message
-                        : "Falha ao enviar imagem do produto."
-                );
-                setIsUploadingImage(false);
-                setUploadProgress(null);
-                return;
+
+                for (let index = 0; index < filesToUpload.length; index += 1) {
+                    const upload = filesToUpload[index];
+                    const uploadedUrl = await uploadImageWithProgress(
+                        upload.file,
+                        editingProduct?.id || null,
+                        String(formData.get("name") || "produto")
+                    );
+
+                    const progress = Math.round(((index + 1) / filesToUpload.length) * 100);
+                    setUploadProgress(progress);
+
+                    uploadedUrls.push(uploadedUrl);
+                    if (upload.variantId) {
+                        const variantTarget = normalizedVariants.find(
+                            (variant) => variant.id === upload.variantId
+                        );
+                        if (variantTarget) {
+                            variantTarget.images = Array.from(
+                                new Set([...(variantTarget.images || []), uploadedUrl])
+                            );
+                        }
+                    }
+                }
             }
+
+            const mergedImageUrls = Array.from(
+                new Set([
+                    ...normalizedVariants.flatMap((variant) => variant.images || []),
+                    ...uploadedUrls,
+                ])
+            );
+
+            formData.set(
+                "variantsJson",
+                JSON.stringify(
+                    normalizedVariants.map((variant) => ({
+                        color: variant.color,
+                        stock: variant.stock,
+                        sizes: variant.sizes,
+                        images: variant.images || [],
+                    }))
+                )
+            );
+            formData.set("uploadedImageUrls", JSON.stringify(mergedImageUrls));
+            if (mergedImageUrls[0]) {
+                formData.set("uploadedImageUrl", mergedImageUrls[0]);
+            }
+        } catch (error) {
+            setActionError(
+                error instanceof Error
+                    ? error.message
+                    : "Falha ao enviar imagens do produto."
+            );
+            setIsUploadingImage(false);
+            setUploadProgress(null);
+            return;
+        } finally {
             setIsUploadingImage(false);
         }
 
@@ -254,6 +456,8 @@ export default function EstoqueClient({
 
             setIsEditorOpen(false);
             setEditingProduct(null);
+            setVariantRows([]);
+            setVariantFiles({});
             setUploadProgress(null);
             router.refresh();
         } catch {
@@ -725,6 +929,112 @@ export default function EstoqueClient({
                                 </div>
                             </div>
 
+                            <div className="rounded-2xl border border-brand-border/70 p-4 space-y-4">
+                                <div className="flex items-center justify-between gap-3">
+                                    <p className="text-xs uppercase tracking-widest text-brand-muted font-bold">
+                                        Cores, tamanhos e estoque por cor
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={addVariantRow}
+                                        className="inline-flex items-center gap-1 rounded-lg border border-brand-border px-3 py-1.5 text-xs font-semibold text-brand-text hover:bg-brand-bg transition-colors"
+                                    >
+                                        <Plus size={12} />
+                                        Adicionar cor
+                                    </button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {variantRows.map((variant, index) => (
+                                        <div
+                                            key={variant.id}
+                                            className="rounded-xl border border-brand-border/60 p-3 space-y-3"
+                                        >
+                                            <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px_auto] gap-3">
+                                                <input
+                                                    value={variant.color}
+                                                    onChange={(event) =>
+                                                        updateVariantRow(variant.id, (current) => ({
+                                                            ...current,
+                                                            color: event.target.value,
+                                                        }))
+                                                    }
+                                                    placeholder={`Cor ${index + 1}`}
+                                                    className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-accent/20"
+                                                />
+                                                <input
+                                                    value={variant.stock}
+                                                    type="number"
+                                                    min="0"
+                                                    step="1"
+                                                    onChange={(event) =>
+                                                        updateVariantRow(variant.id, (current) => ({
+                                                            ...current,
+                                                            stock: Math.max(
+                                                                0,
+                                                                Math.trunc(Number(event.target.value || 0))
+                                                            ),
+                                                        }))
+                                                    }
+                                                    placeholder="Estoque"
+                                                    className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-accent/20"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeVariantRow(variant.id)}
+                                                    disabled={variantRows.length <= 1}
+                                                    className="rounded-xl border border-brand-border px-3 py-2.5 text-sm text-brand-muted hover:text-brand-text disabled:opacity-40"
+                                                >
+                                                    Remover
+                                                </button>
+                                            </div>
+
+                                            <div className="flex flex-wrap gap-3">
+                                                {SIZE_OPTIONS.map((size) => (
+                                                    <label
+                                                        key={`${variant.id}-${size}`}
+                                                        className="inline-flex items-center gap-2 text-sm text-brand-text"
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={variant.sizes.includes(size)}
+                                                            onChange={() => toggleVariantSize(variant.id, size)}
+                                                        />
+                                                        {size}
+                                                    </label>
+                                                ))}
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[11px] uppercase tracking-widest text-brand-muted font-bold block mb-2">
+                                                    Imagens desta cor (opcional)
+                                                </label>
+                                                <input
+                                                    type="file"
+                                                    multiple
+                                                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                                                    onChange={(event) =>
+                                                        handleVariantFilesChange(
+                                                            variant.id,
+                                                            event.target.files
+                                                        )
+                                                    }
+                                                    className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm"
+                                                />
+                                                <p className="text-xs text-brand-muted mt-2">
+                                                    {variant.images.length > 0
+                                                        ? `${variant.images.length} imagem(ns) já vinculada(s) para esta cor.`
+                                                        : "Nenhuma imagem vinculada para esta cor ainda."}
+                                                    {variantFiles[variant.id]?.length
+                                                        ? ` + ${variantFiles[variant.id].length} nova(s) selecionada(s).`
+                                                        : ""}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <label className="inline-flex items-center gap-2 text-sm text-brand-text">
                                     <input
@@ -776,17 +1086,18 @@ export default function EstoqueClient({
 
                             <div>
                                 <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
-                                    Foto da peça (opcional)
+                                    Fotos da peça (opcional)
                                 </label>
                                 <input
-                                    name="image"
+                                    name="images"
                                     type="file"
-                                    accept="image/*"
+                                    multiple
+                                    accept="image/jpeg,image/jpg,image/png,image/webp"
                                     className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm"
                                 />
-                                {editingProduct?.image ? (
+                                {editingProduct?.images?.length ? (
                                     <p className="text-xs text-brand-muted mt-2">
-                                        Imagem atual cadastrada. Envie nova foto para trocar.
+                                        {editingProduct.images.length} imagem(ns) cadastrada(s). Você pode enviar mais.
                                     </p>
                                 ) : (
                                     <p className="text-xs text-brand-muted mt-2">
@@ -795,7 +1106,7 @@ export default function EstoqueClient({
                                 )}
                                 {uploadProgress !== null ? (
                                     <p className="text-xs text-brand-muted mt-2">
-                                        Envio da imagem: {uploadProgress}%
+                                        Envio das imagens: {uploadProgress}%
                                     </p>
                                 ) : null}
                             </div>

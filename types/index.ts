@@ -1,3 +1,25 @@
+export interface ProductVariantSize {
+    id?: string;
+    size: SizeOption;
+    stock: number;
+}
+
+export interface ProductVariant {
+    id: string;
+    color: string;
+    stock: number;
+    available: boolean;
+    sizes: ProductVariantSize[];
+    images: string[];
+}
+
+export interface ProductImage {
+    id: string;
+    url: string;
+    variantId?: string | null;
+    sortOrder: number;
+}
+
 export interface Product {
     id: string;
     slug: string;
@@ -15,6 +37,8 @@ export interface Product {
     bestSeller?: boolean;
     isLancamento?: boolean;
     createdAt?: string;
+    variants?: ProductVariant[];
+    images?: ProductImage[];
 }
 
 export type SizeOption = "P" | "M" | "G" | "GG" | "Único";

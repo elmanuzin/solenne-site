@@ -25,26 +25,44 @@ export default async function ProductPage({
     await recordProductView(product.id);
 
     const category = getCategoryBySlug(product.category);
-    const [suggested, allProducts] = await Promise.all([
-        getSuggestedProducts(slug, 4),
-        listCatalogProducts({ includeUnavailable: true }),
-    ]);
-    const colorVariants = allProducts
-        .filter(
-            (item) =>
-                item.name === product.name &&
-                item.category === product.category
-        )
-        .map((item) => ({
-            color: item.color,
-            slug: item.slug,
-            available: item.available && item.stock > 0,
-        }))
-        .sort((a, b) => {
-            if (a.slug === product.slug) return -1;
-            if (b.slug === product.slug) return 1;
-            return a.color.localeCompare(b.color, "pt-BR");
-        });
+    const suggested = await getSuggestedProducts(slug, 4);
+
+    let colorVariants: Array<{
+        color: string;
+        slug: string;
+        available: boolean;
+    }> = [];
+
+    if (
+        product.variants?.length &&
+        !product.variants[0].id.startsWith("legacy-")
+    ) {
+        colorVariants = product.variants
+            .map((variant) => ({
+                color: variant.color,
+                slug: product.slug,
+                available: variant.available && variant.stock > 0,
+            }))
+            .sort((a, b) => a.color.localeCompare(b.color, "pt-BR"));
+    } else {
+        const allProducts = await listCatalogProducts({ includeUnavailable: true });
+        colorVariants = allProducts
+            .filter(
+                (item) =>
+                    item.name === product.name &&
+                    item.category === product.category
+            )
+            .map((item) => ({
+                color: item.color,
+                slug: item.slug,
+                available: item.available && item.stock > 0,
+            }))
+            .sort((a, b) => {
+                if (a.slug === product.slug) return -1;
+                if (b.slug === product.slug) return 1;
+                return a.color.localeCompare(b.color, "pt-BR");
+            });
+    }
 
     return (
         <ProductClient

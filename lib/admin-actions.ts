@@ -49,15 +49,96 @@ function parseSizes(entries: FormDataEntryValue[]): Array<"P" | "M" | "G" | "GG"
     return unique.length ? unique : ["P", "M", "G"];
 }
 
+type VariantPayload = {
+    color: string;
+    stock: number;
+    sizes: Array<"P" | "M" | "G" | "GG" | "Único">;
+    images: string[];
+};
+
+function parseVariantsFromForm(formData: FormData): VariantPayload[] {
+    const raw = String(formData.get("variantsJson") || "").trim();
+    if (!raw) return [];
+
+    try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) return [];
+
+        const allowed = new Set<VariantPayload["sizes"][number]>([
+            "P",
+            "M",
+            "G",
+            "GG",
+            "Único",
+        ]);
+
+        return parsed
+            .map((entry) => {
+                const item = entry as Record<string, unknown>;
+                const color = String(item.color || "").trim();
+                const stock = Math.max(0, Math.trunc(Number(item.stock || 0)));
+                const sizes = Array.isArray(item.sizes)
+                    ? Array.from(
+                          new Set(
+                              item.sizes
+                                  .map((size) => String(size) as VariantPayload["sizes"][number])
+                                  .filter((size) => allowed.has(size))
+                          )
+                      )
+                    : [];
+                const images = Array.isArray(item.images)
+                    ? Array.from(
+                          new Set(
+                              item.images
+                                  .map((url) => String(url || "").trim())
+                                  .filter(Boolean)
+                          )
+                      )
+                    : [];
+
+                return { color, stock, sizes, images };
+            })
+            .filter((variant) => variant.color && variant.sizes.length > 0);
+    } catch {
+        return [];
+    }
+}
+
+function parseUploadedImageUrls(formData: FormData): string[] {
+    const raw = String(formData.get("uploadedImageUrls") || "").trim();
+    if (!raw) return [];
+
+    try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) return [];
+        return Array.from(
+            new Set(
+                parsed
+                    .map((url) => String(url || "").trim())
+                    .filter(Boolean)
+            )
+        );
+    } catch {
+        return [];
+    }
+}
+
 function parseAndValidateProductForm(formData: FormData) {
+    const variants = parseVariantsFromForm(formData);
+    const variantStock = variants.reduce((sum, variant) => sum + variant.stock, 0);
+    const firstVariant = variants[0];
+    const selectedSizes = firstVariant?.sizes?.length
+        ? firstVariant.sizes
+        : parseSizes(formData.getAll("sizes"));
+
     const raw = {
         name: String(formData.get("name") || ""),
         category: String(formData.get("category") || "vestidos"),
-        color: String(formData.get("color") || ""),
+        color: firstVariant?.color || String(formData.get("color") || ""),
         price: Number(formData.get("price") || 0),
-        stock: Number(formData.get("stock") || 0),
+        stock: variants.length ? variantStock : Number(formData.get("stock") || 0),
         description: String(formData.get("description") || ""),
-        sizes: parseSizes(formData.getAll("sizes")),
+        sizes: selectedSizes,
         featured: parseBoolean(formData.get("featured")),
         newArrival: parseBoolean(formData.get("newArrival")),
         bestSeller: parseBoolean(formData.get("bestSeller")),
@@ -441,11 +522,15 @@ export async function createProductAction(formData: FormData) {
             return { error: validation.error.issues[0].message };
         }
 
+        const variants = parseVariantsFromForm(formData);
+        const uploadedImageUrls = parseUploadedImageUrls(formData);
         const uploadedImageUrl = String(formData.get("uploadedImageUrl") || "").trim();
         const imageFile = formData.get("image");
         const created = await createAdminProduct({
             ...validation.data,
-            image: uploadedImageUrl,
+            image: uploadedImageUrl || uploadedImageUrls[0] || "",
+            variants,
+            images: uploadedImageUrls,
         });
 
         let finalProduct = created;
@@ -494,6 +579,8 @@ export async function updateProductAction(formData: FormData) {
             return { error: validation.error.issues[0].message };
         }
 
+        const variants = parseVariantsFromForm(formData);
+        const uploadedImageUrls = parseUploadedImageUrls(formData);
         const removeImage = parseBoolean(formData.get("removeImage"));
         const uploadedImageUrl = String(formData.get("uploadedImageUrl") || "").trim();
         const imageFile = formData.get("image");
@@ -525,6 +612,12 @@ export async function updateProductAction(formData: FormData) {
         const updated = await updateAdminProduct(idValidation.data.productId, {
             ...validation.data,
             image: nextImage,
+            variants,
+            images: uploadedImageUrls.length
+                ? uploadedImageUrls
+                : nextImage
+                  ? [nextImage]
+                  : [],
         });
 
         if (!updated) {
