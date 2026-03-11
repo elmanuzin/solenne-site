@@ -135,10 +135,8 @@ export default function EstoqueClient({
 
     function validateProductForm(formData: FormData): string | null {
         const name = String(formData.get("name") || "").trim();
-        const color = String(formData.get("color") || "").trim();
         const description = String(formData.get("description") || "").trim();
         const price = Number(formData.get("price") || 0);
-        const sizes = formData.getAll("sizes");
         const validVariants = variantRows
             .map((variant) => ({
                 color: variant.color.trim(),
@@ -148,9 +146,7 @@ export default function EstoqueClient({
             .filter((variant) => variant.color && variant.sizes.length > 0);
 
         if (!name || name.length < 2) return "Informe um nome válido para o produto.";
-        if (!validVariants.length && (!color || color.length < 2)) {
-            return "Informe ao menos uma cor válida.";
-        }
+        if (!validVariants.length) return "Cadastre ao menos uma cor válida.";
         if (!description || description.length < 5) return "Informe uma descrição válida.";
         if (!Number.isFinite(price) || price < 0) return "Informe um preço válido.";
         if (validVariants.length) {
@@ -158,10 +154,6 @@ export default function EstoqueClient({
                 (variant) => !Number.isInteger(variant.stock) || variant.stock < 0
             );
             if (hasInvalidStock) return "Informe estoque válido para cada cor.";
-        } else {
-            const stock = Number(formData.get("stock") || 0);
-            if (!Number.isInteger(stock) || stock < 0) return "Informe um estoque válido.";
-            if (!sizes.length) return "Selecione ao menos um tamanho.";
         }
 
         return null;
@@ -342,7 +334,6 @@ export default function EstoqueClient({
 
         const firstVariant = normalizedVariants[0];
         const totalStock = normalizedVariants.reduce((sum, variant) => sum + variant.stock, 0);
-        formData.set("color", firstVariant.color);
         formData.set("stock", String(totalStock));
         formData.delete("sizes");
         firstVariant.sizes.forEach((size) => formData.append("sizes", size));
@@ -817,24 +808,13 @@ export default function EstoqueClient({
 
                         <form onSubmit={handleSubmit} className="p-6 space-y-5">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
+                                <div className="sm:col-span-2">
                                     <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
                                         Nome
                                     </label>
                                     <input
                                         name="name"
                                         defaultValue={editingProduct?.name || ""}
-                                        required
-                                        className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-accent/20"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
-                                        Cor
-                                    </label>
-                                    <input
-                                        name="color"
-                                        defaultValue={editingProduct?.color || ""}
                                         required
                                         className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-accent/20"
                                     />
