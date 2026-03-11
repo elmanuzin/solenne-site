@@ -254,7 +254,7 @@ export default function AdminAnalyticsPage() {
                     className="inline-flex items-center justify-center gap-2 bg-brand-accent text-white px-4 py-2.5 rounded-xl hover:bg-brand-accent-hover text-sm font-semibold"
                 >
                     <Plus size={16} />
-                    + Registrar venda
+                    Registrar venda
                 </button>
             </div>
 
