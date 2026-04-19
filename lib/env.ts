@@ -26,6 +26,22 @@ function readEnvVar(name: string, developmentFallback = ""): string {
     return developmentFallback;
 }
 
+// Use for non-critical vars that have a valid production fallback.
+// Never throws — warns in production and uses the fallback value.
+function readEnvVarWithFallback(name: string, fallback: string): string {
+    const rawValue = process.env[name];
+    const value = typeof rawValue === "string" ? rawValue.trim() : "";
+
+    if (value) {
+        return value;
+    }
+
+    warnOnce(
+        `[env] Missing ${name}. Using fallback: ${fallback}. Fallback usado em produção caso não configurado na Vercel.`
+    );
+    return fallback;
+}
+
 export type PublicEnv = Readonly<{
     isProduction: boolean;
     NEXT_PUBLIC_SUPABASE_URL: string;
@@ -43,7 +59,7 @@ export const env: PublicEnv = {
         "NEXT_PUBLIC_SUPABASE_ANON_KEY",
         "dev-anon-key"
     ),
-    NEXT_PUBLIC_WHATSAPP_NUMBER: readEnvVar(
+    NEXT_PUBLIC_WHATSAPP_NUMBER: readEnvVarWithFallback(
         "NEXT_PUBLIC_WHATSAPP_NUMBER",
         "5543988044801"
     ),
