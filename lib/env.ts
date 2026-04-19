@@ -1,3 +1,5 @@
+import "server-only";
+
 const warnedKeys = new Set<string>();
 
 export const isProduction = process.env.NODE_ENV === "production";

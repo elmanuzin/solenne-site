@@ -1,13 +1,12 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { env } from "@/lib/env";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 let cachedBrowserClient: SupabaseClient | null = null;
 
 function createSupabaseBrowserClient(): SupabaseClient {
-    return createClient(
-        env.NEXT_PUBLIC_SUPABASE_URL,
-        env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    );
+    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
 export function getSupabaseBrowserClient(): SupabaseClient {
