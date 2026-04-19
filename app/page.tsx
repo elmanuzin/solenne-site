@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, MessageCircle } from "lucide-react";
 import TrustBar from "@/components/ui/TrustBar";
 import ProductGrid from "@/components/catalog/ProductGrid";
 import HeroBannerClickable from "@/components/home/HeroBannerClickable";
@@ -9,170 +9,214 @@ import {
   listFeaturedProducts,
   listNewArrivals,
 } from "@/lib/catalog";
-import { listMostViewedProducts } from "@/lib/views";
+import { generateDefaultMessage } from "@/lib/whatsapp";
 
 export const revalidate = 60;
 
-function ProductSection({
+// ─── Cabeçalho de seção editorial ─────────────────────
+function SectionHeader({
+  label,
   title,
-  subtitle,
-  products,
+  href,
 }: {
+  label?: string;
   title: string;
-  subtitle: string;
-  products: Awaited<ReturnType<typeof listFeaturedProducts>>;
+  href: string;
 }) {
   return (
-    <section className="section-spacing container-custom">
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-10">
-        <div>
-          <h2 className="text-heading-2">{title}</h2>
-          <p className="text-sm text-brand-muted mt-2">{subtitle}</p>
-        </div>
-        <Link
-          href="/catalogo"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-accent hover:text-brand-accent-hover transition-colors"
-        >
-          Ver catálogo completo
-          <ArrowRight size={16} />
-        </Link>
+    <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+      <div>
+        {label && (
+          <p className="text-[10px] uppercase tracking-[0.3em] text-brand-accent font-semibold mb-2">
+            {label}
+          </p>
+        )}
+        <h2 className="font-heading text-2xl sm:text-3xl font-bold text-brand-text tracking-tight">
+          {title}
+        </h2>
       </div>
-      <ProductGrid products={products} />
-    </section>
+      <Link
+        href={href}
+        className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-brand-muted hover:text-brand-text transition-colors uppercase tracking-[0.2em]"
+      >
+        Ver todos
+        <ArrowRight size={12} />
+      </Link>
+    </div>
   );
 }
 
+// ─── Cores editoriais por categoria ───────────────────
+const categoryStyle: Record<string, { bg: string; accent: string }> = {
+  conjuntos: { bg: "#F5E6E8", accent: "#8B3A52" },
+  body:      { bg: "#EDE7F6", accent: "#5E35B1" },
+  vestidos:  { bg: "#FFF3E0", accent: "#BF7B3A" },
+  saias:     { bg: "#FCE4EC", accent: "#C2185B" },
+  croppeds:  { bg: "#E8F5E9", accent: "#2E7D32" },
+  shorts:    { bg: "#E3F2FD", accent: "#1565C0" },
+};
+
 export default async function Home() {
-  const [destaques, novidades, maisAmados, maisVendidos, maisVistos] = await Promise.all([
+  const [destaques, novidades, maisVendidos] = await Promise.all([
     listFeaturedProducts(8),
     listNewArrivals(8),
-    listBestSellerProducts(6),
     listBestSellerProducts(8),
-    listMostViewedProducts(8),
   ]);
 
+  const whatsappLink = generateDefaultMessage();
+
   return (
-    <div className="pb-20">
+    <div>
+      {/* ── Hero editorial ─────────────────────────────── */}
       <HeroBannerClickable />
 
+      {/* ── Trust strip fino ───────────────────────────── */}
       <TrustBar />
 
-      <ProductSection
-        title="Mais amados 💋"
-        subtitle="Os favoritos mais pedidos pelas clientes Solenne."
-        products={maisAmados}
-      />
+      {/* ── Destaques da coleção ───────────────────────── */}
+      <section className="py-20 sm:py-28 container-custom">
+        <SectionHeader label="Seleção" title="Destaques da coleção" href="/catalogo" />
+        <ProductGrid products={destaques} />
+      </section>
 
-      <section className="container-custom py-14 sm:py-16">
-        <div className="rounded-3xl border border-brand-border bg-white/60 p-6 sm:p-8 md:p-10 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
-            <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-brand-accent font-semibold mb-2">
-                Clube Solenne
-              </p>
-              <h2 className="text-heading-2">Benefícios exclusivos</h2>
-            </div>
-            <Link
-              href="/clube"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-accent hover:text-brand-accent-hover transition-colors"
+      {/* ── Identidade da marca ────────────────────────── */}
+      <section className="py-20 sm:py-28 border-t border-brand-border/50">
+        <div className="container-custom">
+          <div className="max-w-xl">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-brand-accent font-semibold mb-5">
+              Sobre a Solenne
+            </p>
+            <p className="font-heading text-2xl sm:text-3xl md:text-4xl font-light text-brand-text leading-[1.35] mb-6">
+              "Cada peça, escolhida<br />
+              com cuidado para<br />
+              a mulher real."
+            </p>
+            <p className="text-sm sm:text-base text-brand-muted leading-relaxed mb-8 max-w-md">
+              Somos de Londrina, como você. Sabemos que o corpo real não é de
+              revista — e é exatamente por isso que cada peça da Solenne é
+              pensada pra você usar de verdade: no trabalho, no happy hour,
+              no rolê de sábado.
+            </p>
+            <a
+              href={whatsappLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-text hover:text-brand-accent transition-colors"
             >
-              Ver página do clube
-              <ArrowRight size={16} />
-            </Link>
+              Falar com a gente
+              <ArrowRight size={14} />
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Novidades ──────────────────────────────────── */}
+      <section className="py-20 sm:py-28 container-custom border-t border-brand-border/50">
+        <SectionHeader label="Chegadas recentes" title="Novidades" href="/catalogo" />
+        <ProductGrid products={novidades} />
+      </section>
+
+      {/* ── Categorias editoriais ──────────────────────── */}
+      <section className="py-20 sm:py-28 border-t border-brand-border/50 bg-white/40">
+        <div className="container-custom">
+          <div className="mb-10">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-brand-accent font-semibold mb-2">
+              Explore
+            </p>
+            <h2 className="font-heading text-2xl sm:text-3xl font-bold text-brand-text tracking-tight">
+              Nossas categorias
+            </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-            <Link
-              href="/clube"
-              className="rounded-2xl border border-brand-border bg-brand-bg-soft px-5 py-6 sm:px-6 sm:py-7 shadow-sm hover:shadow-md transition-all"
-            >
-              <h3 className="font-heading text-2xl text-brand-text mb-2">Cartão Fidelidade</h3>
-              <p className="text-sm text-brand-muted mb-4 leading-relaxed">
-                Acumule benefícios a cada compra na Solenne.
-              </p>
-              <span className="inline-flex items-center gap-2 rounded-full bg-brand-text text-white px-5 py-3 text-sm font-semibold">
-                Ver cartão fidelidade
-                <ArrowRight size={14} />
-              </span>
-            </Link>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+            {categories.map((cat) => {
+              const style = categoryStyle[cat.slug] ?? { bg: "#F5F0E8", accent: "#555555" };
+              return (
+                <Link
+                  key={cat.slug}
+                  href={`/catalogo?categoria=${cat.slug}`}
+                  className="group relative rounded-2xl overflow-hidden flex flex-col justify-end p-5 sm:p-6 aspect-square transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+                  style={{ backgroundColor: style.bg }}
+                >
+                  {/* Hover overlay sutil */}
+                  <div
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-400"
+                    style={{ backgroundColor: style.accent + "18" }}
+                  />
+                  <p className="relative z-10 font-heading text-xl sm:text-2xl font-bold text-brand-text leading-tight mb-1.5">
+                    {cat.name}
+                  </p>
+                  <p
+                    className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.22em] flex items-center gap-1"
+                    style={{ color: style.accent }}
+                  >
+                    Explorar
+                    <ArrowRight size={10} />
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
+      {/* ── Mais vendidos ──────────────────────────────── */}
+      <section className="py-20 sm:py-28 container-custom border-t border-brand-border/50">
+        <SectionHeader label="Favoritas" title="Mais vendidos" href="/catalogo" />
+        <ProductGrid products={maisVendidos} />
+      </section>
+
+      {/* ── Clube Solenne — compacto e editorial ───────── */}
+      <section className="py-20 sm:py-28 border-t border-brand-border/50 bg-white/40">
+        <div className="container-custom">
+          <div className="rounded-3xl bg-brand-text text-white px-8 py-12 sm:px-14 sm:py-16">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-white/40 font-semibold mb-4">
+              Programa de fidelidade
+            </p>
+            <h2 className="font-heading text-3xl sm:text-4xl font-bold mb-4 leading-tight">
+              Clube Solenne
+            </h2>
+            <p className="text-white/60 text-sm sm:text-base max-w-md mb-8 leading-relaxed">
+              Acumule selos a cada compra e troque por croppeds exclusivos.
+              Indique amigas e ganhe ainda mais benefícios.
+            </p>
             <Link
               href="/clube"
-              className="rounded-2xl border border-brand-border bg-brand-bg-soft px-5 py-6 sm:px-6 sm:py-7 shadow-sm hover:shadow-md transition-all"
+              className="inline-flex items-center gap-2 bg-white text-brand-text font-semibold px-7 py-3.5 rounded-full hover:bg-brand-bg transition-colors text-sm"
             >
-              <h3 className="font-heading text-2xl text-brand-text mb-2">Cartão Indicação</h3>
-              <p className="text-sm text-brand-muted mb-4 leading-relaxed">
-                Indique amigas e ganhe vantagens nas próximas compras.
-              </p>
-              <span className="inline-flex items-center gap-2 rounded-full bg-brand-text text-white px-5 py-3 text-sm font-semibold">
-                Ver cartão indicação
-                <ArrowRight size={14} />
-              </span>
+              Conhecer o clube
+              <ArrowRight size={14} />
             </Link>
           </div>
         </div>
       </section>
 
-      <ProductSection
-        title="Destaques 💋"
-        subtitle="Peças selecionadas em destaque na Solenne."
-        products={destaques}
-      />
-
-      <ProductSection
-        title="Novidades ✨"
-        subtitle="Últimas peças adicionadas à coleção."
-        products={novidades}
-      />
-
-      <ProductSection
-        title="Mais vendidos 🔥"
-        subtitle="Os produtos favoritos das clientes Solenne."
-        products={maisVendidos}
-      />
-
-      <ProductSection
-        title="Mais vistos 👀"
-        subtitle="As peças mais visualizadas no site da Solenne."
-        products={maisVistos}
-      />
-
-      <section className="container-custom pb-20">
-        <div className="rounded-3xl border border-brand-border bg-white/70 p-8 sm:p-10">
-          <div className="flex items-center gap-2 mb-4 text-brand-accent">
-            <Sparkles size={18} />
-            <span className="text-xs uppercase tracking-[0.2em] font-semibold">Categorias</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {categories.map((category) => (
-              <Link
-                key={category.slug}
-                href={`/catalogo?categoria=${category.slug}`}
-                className="px-4 py-3 rounded-2xl border border-brand-border bg-brand-bg-soft text-center text-sm font-medium text-brand-text hover:border-brand-accent/40 hover:text-brand-accent transition-colors"
-              >
-                {category.name}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="section-spacing px-4 bg-brand-accent text-white text-center">
-        <div className="max-w-2xl mx-auto">
-          <h2 className="font-heading text-3xl md:text-5xl lg:text-6xl font-bold mb-6">
-            Faça parte do Clube Solenne <span className="kiss-emoji">💋</span>
-          </h2>
-          <p className="text-white/85 text-sm md:text-base mb-8 leading-relaxed">
-            Acumule selos em cada compra e troque por brindes exclusivos.
+      {/* ── CTA final — WhatsApp ───────────────────────── */}
+      <section className="py-24 sm:py-36 bg-[#0E0E0E] text-white text-center">
+        <div className="max-w-lg mx-auto px-6">
+          <p className="text-[10px] uppercase tracking-[0.35em] text-white/35 font-semibold mb-5">
+            Atendimento personalizado
           </p>
-          <Link
-            href="/clube"
-            className="inline-flex items-center gap-2 bg-white text-brand-accent px-8 py-3 rounded-full font-medium hover:bg-brand-bg transition-colors shadow-lg shadow-black/10"
+          <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-bold mb-5 leading-[1.1]">
+            Encontrou algo<br />
+            que amou?
+          </h2>
+          <p className="text-white/50 text-sm sm:text-base mb-10 leading-relaxed">
+            Fale com a gente agora. Respondemos rápido<br className="hidden sm:block" />
+            e entregamos hoje em Londrina.
+          </p>
+          <a
+            href={whatsappLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-3 bg-[#25D366] text-white font-bold px-10 py-4 rounded-full hover:bg-[#20bd5a] transition-all shadow-xl shadow-[#25D366]/15 active:scale-[0.98] text-sm sm:text-base"
           >
-            Entrar no Clube
-            <ArrowRight size={18} />
-          </Link>
+            <MessageCircle size={20} />
+            Falar no WhatsApp
+          </a>
+          <p className="text-white/25 text-xs mt-6 tracking-wide">
+            Atendimento rápido · Entrega no mesmo dia em Londrina
+          </p>
         </div>
       </section>
     </div>

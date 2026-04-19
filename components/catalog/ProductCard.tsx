@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { Product } from "@/types";
 import { formatPrice } from "@/lib/utils";
-import { ShoppingBag } from "lucide-react";
 
 interface ProductCardProps {
     product: Product;
@@ -10,104 +9,82 @@ interface ProductCardProps {
 
 export default function ProductCard({ product }: ProductCardProps) {
     const isUnavailable = !product.available || product.stock <= 0;
-    const categoryLabels: Record<Product["category"], string> = {
-        conjuntos: "Conjunto",
-        body: "Body",
-        vestidos: "Vestido",
-        saias: "Saia",
-        croppeds: "Cropped",
-        shorts: "Shorts",
-    };
 
     return (
         <Link
             href={`/produto/${product.slug}`}
-            className="group block bg-brand-card rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300"
+            className="group block bg-white rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.10)] transition-all duration-500"
         >
-            {/* Image */}
-            <div className="relative aspect-[3/4] overflow-hidden bg-brand-bg-soft">
+            {/* Imagem — proporção 3:4 padrão moda */}
+            <div className="relative aspect-[3/4] overflow-hidden bg-[#F5EDE0]">
                 {product.image ? (
                     <Image
                         src={product.image}
                         alt={product.name}
                         fill
-                        className="object-cover transition-transform duration-700 group-hover:scale-105"
+                        className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
                         loading="lazy"
-                        sizes="(max-width: 768px) 50vw, 33vw"
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                     />
                 ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#FFF9E8] p-4">
-                        <ShoppingBag
-                            size={20}
-                            className="text-brand-muted/40 mb-2"
-                        />
-                        <p className="font-heading text-xs text-brand-muted/60 font-medium tracking-wide">
-                            Imagem em breve
-                        </p>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="font-heading text-[11px] text-brand-muted/50 tracking-[0.2em] uppercase">
+                            Em breve
+                        </span>
                     </div>
                 )}
 
-                {/* Overlay on hover */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-300 pointer-events-none" />
-                <div className="absolute inset-0 z-[5] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                    <span className="inline-flex items-center justify-center rounded-full bg-black/85 px-5 py-2 text-xs font-semibold text-white shadow-lg">
-                        Ver produto
+                {/* Gradiente de hover — escurece suavemente a base */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
+                {/* "Ver peça" pill — aparece no hover centralizado */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-400 pointer-events-none z-10">
+                    <span className="inline-flex items-center gap-1.5 bg-white text-brand-text text-[11px] font-semibold uppercase tracking-[0.16em] px-5 py-2.5 rounded-full shadow-lg">
+                        Ver peça
                     </span>
                 </div>
 
-                {/* Badges */}
-                <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
-                    {product.featured && (
-                        <span className="inline-block bg-white text-brand-text text-[10px] uppercase tracking-widest font-medium px-2.5 py-1 rounded-full shadow-sm">
-                            💋 Destaque
+                {/* Badges — máximo 1 visível para não poluir */}
+                <div className="absolute top-3 left-3 z-10">
+                    {product.newArrival && !isUnavailable && (
+                        <span className="inline-block bg-brand-accent text-white text-[9px] uppercase tracking-[0.18em] font-semibold px-2.5 py-1 rounded-full shadow-sm">
+                            Novo
                         </span>
                     )}
-                    {product.newArrival && (
-                        <span className="inline-block bg-brand-accent text-white text-[10px] uppercase tracking-widest font-medium px-2.5 py-1 rounded-full shadow-sm">
-                            ✨ Novo
-                        </span>
-                    )}
-                    {product.bestSeller && (
-                        <span className="inline-block bg-brand-text text-white text-[10px] uppercase tracking-widest font-medium px-2.5 py-1 rounded-full shadow-sm">
-                            🔥 Mais vendido
+                    {product.isLancamento && !product.newArrival && !isUnavailable && (
+                        <span className="inline-block bg-brand-text text-white text-[9px] uppercase tracking-[0.18em] font-semibold px-2.5 py-1 rounded-full shadow-sm">
+                            Lançamento
                         </span>
                     )}
                     {isUnavailable && (
-                        <span className="inline-block bg-brand-text text-white text-[10px] uppercase tracking-widest font-medium px-2.5 py-1 rounded-full shadow-sm">
+                        <span className="inline-block bg-black/40 backdrop-blur-sm text-white text-[9px] uppercase tracking-[0.18em] font-medium px-2.5 py-1 rounded-full">
                             Indisponível
                         </span>
                     )}
                 </div>
-
-                {product.isLancamento && (
-                    <div className="absolute top-3 right-3 z-10">
-                        <span className="inline-block bg-brand-text text-white text-[10px] uppercase tracking-widest font-medium px-2.5 py-1 rounded-full shadow-sm">
-                            LANÇAMENTO
-                        </span>
-                    </div>
-                )}
             </div>
 
-            {/* Info */}
-            <div className="p-4">
-                <h3 className="font-heading text-base font-semibold text-brand-text group-hover:text-brand-accent transition-colors line-clamp-1">
+            {/* Info — compacto e limpo */}
+            <div className="px-4 py-3.5">
+                <h3 className="font-heading text-sm font-semibold text-brand-text line-clamp-1 leading-snug mb-2">
                     {product.name}
                 </h3>
-                <p className="text-[11px] text-brand-muted mt-1 uppercase tracking-widest">
-                    {categoryLabels[product.category]}
-                </p>
-                <p className="text-xs text-brand-muted mt-1 uppercase tracking-widest">
-                    Cor: {product.color}
-                </p>
-                <p className="text-lg font-bold text-brand-accent mt-1">
-                    {formatPrice(product.price)}
-                </p>
-                <div className="flex flex-wrap gap-1 mt-2">
-                    {product.sizes.map(size => (
-                        <span key={size} className="text-[10px] text-brand-muted border border-brand-border px-1.5 py-0.5 rounded">
-                            {size}
-                        </span>
-                    ))}
+                <div className="flex items-center justify-between gap-2">
+                    <p className="text-base font-bold text-brand-accent leading-none">
+                        {formatPrice(product.price)}
+                    </p>
+                    {product.sizes.length > 0 && (
+                        <div className="flex gap-1 flex-wrap justify-end">
+                            {product.sizes.slice(0, 4).map((size) => (
+                                <span
+                                    key={size}
+                                    className="text-[9px] text-brand-muted/70 border border-brand-border/60 px-1.5 py-0.5 rounded-sm leading-none"
+                                >
+                                    {size}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </Link>

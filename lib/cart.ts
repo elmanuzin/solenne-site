@@ -1,5 +1,6 @@
 export const CART_STORAGE_KEY = "solenne-cart";
-const WHATSAPP_NUMBER = "5543988044801";
+const WHATSAPP_NUMBER =
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "5543988044801";
 
 export type CartItem = {
     productId: string;

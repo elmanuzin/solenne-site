@@ -30,6 +30,7 @@ export type PublicEnv = Readonly<{
     isProduction: boolean;
     NEXT_PUBLIC_SUPABASE_URL: string;
     NEXT_PUBLIC_SUPABASE_ANON_KEY: string;
+    NEXT_PUBLIC_WHATSAPP_NUMBER: string;
 }>;
 
 export const env: PublicEnv = {
@@ -41,6 +42,10 @@ export const env: PublicEnv = {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: readEnvVar(
         "NEXT_PUBLIC_SUPABASE_ANON_KEY",
         "dev-anon-key"
+    ),
+    NEXT_PUBLIC_WHATSAPP_NUMBER: readEnvVar(
+        "NEXT_PUBLIC_WHATSAPP_NUMBER",
+        "5543988044801"
     ),
 };
 

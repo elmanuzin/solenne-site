@@ -3,9 +3,6 @@ import { Playfair_Display, Inter } from "next/font/google";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import WhatsAppFloating from "@/components/layout/WhatsAppFloating";
-import CartButton from "@/components/cart/CartButton";
-import CartDrawer from "@/components/cart/CartDrawer";
-import { CartProvider } from "@/context/CartContext";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -49,14 +46,10 @@ export default function RootLayout({
       <body
         className={`${playfair.variable} ${inter.variable} antialiased bg-brand-bg text-brand-text overflow-x-hidden`}
       >
-        <CartProvider>
-          <Header />
-          <main className="min-h-screen overflow-x-hidden">{children}</main>
-          <Footer />
-          <CartButton />
-          <CartDrawer />
-          <WhatsAppFloating />
-        </CartProvider>
+        <Header />
+        <main className="min-h-screen overflow-x-hidden">{children}</main>
+        <Footer />
+        <WhatsAppFloating />
       </body>
     </html>
   );

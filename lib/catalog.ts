@@ -373,7 +373,13 @@ export async function getCatalogProductBySlug(slug: string): Promise<Product | n
 }
 
 async function fetchFeaturedProducts(limit: number): Promise<Product[]> {
-    const products = await getProductsByFlag("destaque", { limit });
+    let products = await getProductsByFlag("destaque", { limit });
+
+    if (products.length === 0) {
+        const all = await getAllProducts();
+        products = all.filter((p) => p.available).slice(0, limit);
+    }
+
     const variantData = await listVariantDataByProductIds(products.map((product) => product.id));
     return products.map((product) => toProduct(product, variantData));
 }
@@ -394,10 +400,13 @@ export async function listFeaturedProducts(limit = 6): Promise<Product[]> {
 }
 
 async function fetchNewArrivals(limit: number): Promise<Product[]> {
-    const products = await getProductsByFlag("novidade", {
-        limit,
-        orderByNewest: true,
-    });
+    let products = await getProductsByFlag("novidade", { limit, orderByNewest: true });
+
+    if (products.length === 0) {
+        const all = await getAllProducts();
+        products = all.filter((p) => p.available).slice(0, limit);
+    }
+
     const variantData = await listVariantDataByProductIds(products.map((product) => product.id));
     return products.map((product) => toProduct(product, variantData));
 }
@@ -416,7 +425,13 @@ export async function listNewArrivals(limit = 6): Promise<Product[]> {
 }
 
 async function fetchBestSellerProducts(limit: number): Promise<Product[]> {
-    const products = await getProductsByFlag("mais_vendido", { limit });
+    let products = await getProductsByFlag("mais_vendido", { limit });
+
+    if (products.length === 0) {
+        const all = await getAllProducts();
+        products = all.filter((p) => p.available).slice(0, limit);
+    }
+
     const variantData = await listVariantDataByProductIds(products.map((product) => product.id));
     return products.map((product) => toProduct(product, variantData));
 }

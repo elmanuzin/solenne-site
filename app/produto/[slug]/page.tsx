@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ProductClient from "./ProductClient";
 import {
@@ -8,7 +9,55 @@ import {
 import { getCategoryBySlug } from "@/lib/data";
 import { recordProductView } from "@/lib/views";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
+
+const BASE_URL = "https://usesolenne.shop";
+
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+    const { slug } = await params;
+    const product = await getCatalogProductBySlug(slug);
+
+    if (!product) {
+        return { title: "Produto não encontrado — Solenne" };
+    }
+
+    const title = `${product.name} — Solenne`;
+    const description = product.description
+        ? product.description.slice(0, 155)
+        : `${product.name} da Solenne. Moda feminina em Londrina. Entrega via Uber.`;
+    const images = product.image
+        ? [{ url: product.image, width: 800, height: 1067, alt: product.name }]
+        : [];
+
+    return {
+        title,
+        description,
+        openGraph: {
+            title,
+            description,
+            url: `${BASE_URL}/produto/${product.slug}`,
+            images,
+            type: "website",
+            locale: "pt_BR",
+            siteName: "Solenne",
+        },
+        twitter: {
+            card: "summary_large_image",
+            title,
+            description,
+            images: product.image ? [product.image] : [],
+        },
+    };
+}
+
+export async function generateStaticParams() {
+    const products = await listCatalogProducts({ includeUnavailable: false });
+    return products.map((p) => ({ slug: p.slug }));
+}
 
 export default async function ProductPage({
     params,

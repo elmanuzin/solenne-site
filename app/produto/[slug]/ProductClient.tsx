@@ -6,8 +6,8 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ChevronRight,
-    ShoppingBag,
     MessageCircle,
+    ShoppingBag,
     Truck,
     Zap,
     ZoomIn,
@@ -15,8 +15,7 @@ import {
 import ProductGrid from "@/components/catalog/ProductGrid";
 import type { Product, ProductVariantSize, SizeOption } from "@/types";
 import { formatPrice } from "@/lib/utils";
-import { generateProductAvailabilityMessage } from "@/lib/whatsapp";
-import { useCart } from "@/context/CartContext";
+import { generateProductMessage, generateDefaultMessage } from "@/lib/whatsapp";
 import { trackEvent } from "@/lib/analytics";
 
 interface ProductClientProps {
@@ -148,19 +147,11 @@ export default function ProductClient({
     const currentStock = Math.max(0, selectedVariant.stock);
     const isOutOfStock = !product.available || !selectedVariant.available || currentStock <= 0;
     const isLowStock = !isOutOfStock && currentStock <= 3;
-    const { addToCart, openDrawer } = useCart();
 
-    const productUrl =
-        typeof window !== "undefined"
-            ? window.location.href
-            : `/produto/${product.slug}`;
-
-    const whatsappLink = generateProductAvailabilityMessage(
-        product.name,
-        selectedSize ?? "",
-        selectedColor,
-        productUrl
-    );
+    const whatsappLink =
+        selectedSize && selectedColor
+            ? generateProductMessage(product.name, selectedColor, selectedSize, product.price)
+            : generateDefaultMessage();
 
     useEffect(() => {
         trackEvent("product_view", {
@@ -190,28 +181,6 @@ export default function ProductClient({
             color: selectedColor,
         });
     };
-
-    function handleAddToCart() {
-        if (!selectedColor || !selectedSize) {
-            alert("Selecione cor e tamanho antes de adicionar ao carrinho");
-            return;
-        }
-
-        if (selectedSizeStock <= 0) {
-            alert("Esse tamanho está indisponível para a cor selecionada.");
-            return;
-        }
-
-        addToCart({
-            productId: product.id,
-            nome: product.name,
-            preco: product.price,
-            tamanho: selectedSize,
-            cor: selectedColor,
-            url: productUrl,
-        });
-        openDrawer();
-    }
 
     return (
         <div className="max-w-7xl mx-auto px-4 md:px-10 py-8 sm:py-12">
@@ -495,14 +464,6 @@ export default function ProductClient({
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
                             >
-                                <button
-                                    type="button"
-                                    onClick={handleAddToCart}
-                                    className="w-full mb-3 py-4 rounded-full border border-brand-border bg-white text-brand-text text-base font-semibold hover:border-brand-accent transition-colors"
-                                >
-                                    Adicionar ao carrinho
-                                </button>
-
                                 <a
                                     href={whatsappLink}
                                     target="_blank"

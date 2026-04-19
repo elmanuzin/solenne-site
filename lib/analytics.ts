@@ -2,7 +2,9 @@ export type AnalyticsEventName =
   | "product_view"
   | "whatsapp_click"
   | "add_to_cart"
-  | "banner_click";
+  | "banner_click"
+  | "hero_whatsapp_click"
+  | "hero_catalog_click";
 
 type AnalyticsPayload = Record<string, string | number | boolean | null | undefined>;
 
