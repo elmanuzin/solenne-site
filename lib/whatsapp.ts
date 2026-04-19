@@ -1,6 +1,5 @@
-import { env } from "@/lib/env";
-
-const WHATSAPP_NUMBER = env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+const WHATSAPP_NUMBER =
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "5543988044801";
 
 function buildWhatsAppLink(message: string): string {
     return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
