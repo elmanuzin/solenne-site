@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { MessageCircle, ArrowRight } from "lucide-react";
 import { trackEvent } from "@/lib/analytics";
 import { generateDefaultMessage } from "@/lib/whatsapp";
@@ -9,16 +10,19 @@ export default function HeroBannerClickable() {
   const whatsappLink = generateDefaultMessage();
 
   return (
-    <section
-      className="relative w-full min-h-[72vh] md:min-h-[92vh] flex items-end md:items-center overflow-hidden"
-      style={{
-        backgroundImage: "url('/bannersolenesite.jpeg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center top",
-      }}
-    >
-      {/* Overlay — mais pesado na base para mobile legibilidade */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10 pointer-events-none" />
+    <section className="relative w-full min-h-[80vh] md:min-h-[92vh] flex items-end md:items-center overflow-hidden">
+      {/* Imagem com focal point responsivo — mobile mostra o topo da arte, desktop centraliza */}
+      <Image
+        src="/bannersolenesite.jpeg"
+        alt="Solenne — Moda Feminina em Londrina"
+        fill
+        priority
+        className="object-cover object-[center_15%] md:object-center"
+        sizes="100vw"
+      />
+
+      {/* Overlay — gradiente mais intenso na base para legibilidade mobile */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/88 via-black/45 to-black/5 pointer-events-none" />
 
       {/* Conteúdo */}
       <div className="relative z-10 w-full max-w-7xl mx-auto px-5 md:px-10 pb-12 pt-8 md:pb-0">
