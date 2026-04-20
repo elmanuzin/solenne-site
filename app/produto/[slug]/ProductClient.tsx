@@ -153,7 +153,7 @@ export default function ProductClient({
     return (
         <>
             {/* Padding extra no mobile para o sticky CTA acima da bottom nav */}
-            <div className="max-w-7xl mx-auto px-4 md:px-10 py-6 sm:py-12 pb-16 md:pb-12">
+            <div className="max-w-7xl mx-auto px-4 md:px-10 py-6 sm:pt-12 pb-[72px] md:pb-12">
 
                 {/* Breadcrumb — compacto no mobile */}
                 <nav className="flex items-center gap-1.5 text-xs text-brand-muted mb-6 overflow-x-auto whitespace-nowrap pb-1">
