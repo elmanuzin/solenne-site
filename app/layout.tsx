@@ -1,8 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
+import { Suspense } from "react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import WhatsAppFloating from "@/components/layout/WhatsAppFloating";
+import MobileBottomNav from "@/components/mobile/MobileBottomNav";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -18,6 +20,11 @@ const inter = Inter({
   display: "swap",
   weight: ["300", "400", "500", "600", "700"],
 });
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
+  themeColor: "#FFF6DA",
+};
 
 export const metadata: Metadata = {
   title: "Solenne — Elegância que marca presença",
@@ -47,9 +54,12 @@ export default function RootLayout({
         className={`${playfair.variable} ${inter.variable} antialiased bg-brand-bg text-brand-text overflow-x-hidden`}
       >
         <Header />
-        <main className="min-h-screen overflow-x-hidden">{children}</main>
+        <main className="min-h-screen overflow-x-hidden pb-mobile-nav md:pb-0">{children}</main>
         <Footer />
         <WhatsAppFloating />
+        <Suspense fallback={null}>
+          <MobileBottomNav />
+        </Suspense>
       </body>
     </html>
   );

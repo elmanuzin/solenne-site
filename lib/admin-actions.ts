@@ -25,6 +25,8 @@ import {
     updateAdminProduct,
     updateAdminProductImage,
     uploadAdminProductImage,
+    setAdminProductFlags,
+    setAdminProductPrice,
 } from "@/services/admin-product.service";
 import {
     adjustCustomerStamps,
@@ -813,5 +815,39 @@ export async function removeProductImageAction(productId: string) {
         return { success: true };
     } catch {
         return { error: "Não foi possível remover a imagem." };
+    }
+}
+
+export async function updateProductFlagsAction(
+    productId: string,
+    flags: { featured?: boolean; newArrival?: boolean; bestSeller?: boolean }
+) {
+    try {
+        await verifyAdminSession();
+        const validation = ProductIdSchema.safeParse({ productId });
+        if (!validation.success) return { error: "ID inválido." };
+        await setAdminProductFlags(validation.data.productId, flags);
+        const product = await getAdminProductById(validation.data.productId);
+        revalidateCatalogPaths(product?.slug);
+        revalidateAdminCache([CACHE_TAGS.adminProducts]);
+        return { success: true as const };
+    } catch {
+        return { error: "Não foi possível atualizar os destaques." };
+    }
+}
+
+export async function updateProductPriceAction(productId: string, price: number) {
+    try {
+        await verifyAdminSession();
+        const validation = ProductIdSchema.safeParse({ productId });
+        if (!validation.success) return { error: "ID inválido." };
+        if (!Number.isFinite(price) || price < 0) return { error: "Preço inválido." };
+        await setAdminProductPrice(validation.data.productId, price);
+        const product = await getAdminProductById(validation.data.productId);
+        revalidateCatalogPaths(product?.slug);
+        revalidateAdminCache([CACHE_TAGS.adminProducts]);
+        return { success: true as const };
+    } catch {
+        return { error: "Não foi possível atualizar o preço." };
     }
 }

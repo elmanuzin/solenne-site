@@ -1188,6 +1188,32 @@ export async function uploadAdminProductImage(
     return data.publicUrl;
 }
 
+export async function setAdminProductFlags(
+    productId: string,
+    flags: { featured?: boolean; newArrival?: boolean; bestSeller?: boolean }
+): Promise<void> {
+    const supabase = createSupabaseAdminClient();
+    const payload: Record<string, boolean> = {};
+    if (typeof flags.featured === "boolean") payload.destaque = flags.featured;
+    if (typeof flags.newArrival === "boolean") payload.novidade = flags.newArrival;
+    if (typeof flags.bestSeller === "boolean") payload.mais_vendido = flags.bestSeller;
+    if (!Object.keys(payload).length) return;
+    const { error } = await supabase.from("produtos").update(payload).eq("id", productId);
+    if (error) throw new Error("Falha ao atualizar flags do produto.");
+}
+
+export async function setAdminProductPrice(
+    productId: string,
+    price: number
+): Promise<void> {
+    const supabase = createSupabaseAdminClient();
+    const { error } = await supabase
+        .from("produtos")
+        .update({ preco: Math.max(0, price) })
+        .eq("id", productId);
+    if (error) throw new Error("Falha ao atualizar preço do produto.");
+}
+
 export async function removeAdminProductImageByUrl(imageUrl: string): Promise<void> {
     const storagePath = extractStoragePathFromPublicUrl(imageUrl);
     if (!storagePath) return;

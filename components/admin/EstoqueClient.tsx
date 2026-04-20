@@ -7,11 +7,14 @@ import { useRouter } from "next/navigation";
 import {
     ArrowLeft,
     Check,
+    Flame,
+    ImageOff,
     Pencil,
     Plus,
     Search,
+    Sparkles,
+    Star,
     Trash2,
-    Upload,
     X,
 } from "lucide-react";
 import {
@@ -21,6 +24,8 @@ import {
     removeProductImageAction,
     toggleProductAvailabilityAction,
     updateProductAction,
+    updateProductFlagsAction,
+    updateProductPriceAction,
 } from "@/lib/admin-actions";
 import { categories } from "@/lib/data";
 import type { CategorySlug, SizeOption } from "@/types";
@@ -94,6 +99,8 @@ export default function EstoqueClient({
         errors: Array<{ row: number; message: string }>;
     } | null>(null);
     const [csvMessage, setCsvMessage] = useState("");
+    const [priceEditingId, setPriceEditingId] = useState<string | null>(null);
+    const [priceEditValue, setPriceEditValue] = useState("");
     const variantFilesRef = useRef<Record<string, VariantPendingImage[]>>({});
 
     useEffect(() => {
@@ -680,6 +687,70 @@ export default function EstoqueClient({
         }
     }
 
+    async function handleToggleFlag(
+        product: ProductAdminItem,
+        flag: "featured" | "newArrival" | "bestSeller"
+    ) {
+        if (isBusy) return;
+        setActionError("");
+        const nextValue = !product[flag];
+        const previousProducts = products;
+        setProducts((prev) =>
+            prev.map((item) =>
+                item.id === product.id ? { ...item, [flag]: nextValue } : item
+            )
+        );
+        setIsMutating(true);
+        try {
+            const result = await updateProductFlagsAction(product.id, { [flag]: nextValue });
+            if (result?.error) {
+                setProducts(previousProducts);
+                setActionError(result.error);
+            } else {
+                router.refresh();
+            }
+        } catch {
+            setProducts(previousProducts);
+            setActionError("Não foi possível atualizar o flag.");
+        } finally {
+            setIsMutating(false);
+        }
+    }
+
+    function startPriceEdit(product: ProductAdminItem) {
+        if (isBusy) return;
+        setPriceEditingId(product.id);
+        setPriceEditValue(String(product.price));
+    }
+
+    async function commitPriceEdit(product: ProductAdminItem) {
+        const parsed = Number(priceEditValue.replace(",", "."));
+        setPriceEditingId(null);
+        if (!Number.isFinite(parsed) || parsed < 0 || parsed === product.price) return;
+        setActionError("");
+        const previousProducts = products;
+        setProducts((prev) =>
+            prev.map((item) =>
+                item.id === product.id ? { ...item, price: parsed } : item
+            )
+        );
+        setIsMutating(true);
+        try {
+            const result = await updateProductPriceAction(product.id, parsed);
+            if (result?.error) {
+                setProducts(previousProducts);
+                setActionError(result.error);
+            } else {
+                router.refresh();
+            }
+        } catch {
+            setProducts(previousProducts);
+            setActionError("Não foi possível atualizar o preço.");
+        } finally {
+            setIsMutating(false);
+        }
+    }
+
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
@@ -718,7 +789,6 @@ export default function EstoqueClient({
                         disabled={isBusy}
                         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-brand-border bg-white text-brand-text font-semibold text-sm hover:bg-brand-bg transition-colors"
                     >
-                        <Upload size={16} />
                         Importar CSV
                     </button>
                     <button
@@ -769,8 +839,10 @@ export default function EstoqueClient({
                                 <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted">Produto</th>
                                 <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted">Categoria</th>
                                 <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted">Cor</th>
-                                <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted">Tamanhos</th>
                                 <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted text-right">Preço</th>
+                                <th className="px-3 py-4 text-xs uppercase tracking-widest text-brand-muted text-center" title="Destaque"><Star size={13} className="inline" /></th>
+                                <th className="px-3 py-4 text-xs uppercase tracking-widest text-brand-muted text-center" title="Novidade"><Sparkles size={13} className="inline" /></th>
+                                <th className="px-3 py-4 text-xs uppercase tracking-widest text-brand-muted text-center" title="Mais Vendido"><Flame size={13} className="inline" /></th>
                                 <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted text-center">Status</th>
                                 <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted text-center">Ações</th>
                             </tr>
@@ -814,20 +886,62 @@ export default function EstoqueClient({
                                     <td className="px-5 py-4 text-sm text-brand-text">
                                         {product.color}
                                     </td>
-                                    <td className="px-5 py-4">
-                                        <div className="flex flex-wrap gap-1">
-                                            {product.sizes.map((size) => (
-                                                <span
-                                                    key={`${product.id}-${size}`}
-                                                    className="text-[10px] px-2 py-1 rounded-full border border-brand-border text-brand-muted"
-                                                >
-                                                    {size}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </td>
                                     <td className="px-5 py-4 text-right font-semibold text-brand-text text-sm">
-                                        R$ {product.price.toFixed(2)}
+                                        {priceEditingId === product.id ? (
+                                            <input
+                                                autoFocus
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={priceEditValue}
+                                                onChange={(e) => setPriceEditValue(e.target.value)}
+                                                onBlur={() => commitPriceEdit(product)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter") commitPriceEdit(product);
+                                                    if (e.key === "Escape") setPriceEditingId(null);
+                                                }}
+                                                className="w-24 text-right rounded-lg border border-brand-accent px-2 py-1 text-sm outline-none"
+                                            />
+                                        ) : (
+                                            <button
+                                                onClick={() => startPriceEdit(product)}
+                                                disabled={isBusy}
+                                                title="Clique para editar o preço"
+                                                className={`hover:text-brand-accent transition-colors ${product.price === 0 ? "text-red-500" : ""}`}
+                                            >
+                                                R$ {product.price.toFixed(2)}
+                                            </button>
+                                        )}
+                                    </td>
+                                    <td className="px-3 py-4 text-center">
+                                        <button
+                                            onClick={() => handleToggleFlag(product, "featured")}
+                                            disabled={isBusy}
+                                            title="Destaque"
+                                            className={`w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-colors ${product.featured ? "bg-amber-100 text-amber-600" : "border border-brand-border text-brand-muted hover:bg-brand-bg"}`}
+                                        >
+                                            <Star size={14} />
+                                        </button>
+                                    </td>
+                                    <td className="px-3 py-4 text-center">
+                                        <button
+                                            onClick={() => handleToggleFlag(product, "newArrival")}
+                                            disabled={isBusy}
+                                            title="Novidade"
+                                            className={`w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-colors ${product.newArrival ? "bg-purple-100 text-purple-600" : "border border-brand-border text-brand-muted hover:bg-brand-bg"}`}
+                                        >
+                                            <Sparkles size={14} />
+                                        </button>
+                                    </td>
+                                    <td className="px-3 py-4 text-center">
+                                        <button
+                                            onClick={() => handleToggleFlag(product, "bestSeller")}
+                                            disabled={isBusy}
+                                            title="Mais Vendido"
+                                            className={`w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-colors ${product.bestSeller ? "bg-rose-100 text-rose-600" : "border border-brand-border text-brand-muted hover:bg-brand-bg"}`}
+                                        >
+                                            <Flame size={14} />
+                                        </button>
                                     </td>
                                     <td className="px-5 py-4 text-center">
                                         <span
@@ -864,7 +978,7 @@ export default function EstoqueClient({
                                                 className="w-9 h-9 rounded-lg border border-brand-border flex items-center justify-center hover:bg-brand-bg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                                                 title="Remover imagem"
                                             >
-                                                <Upload size={14} />
+                                                <ImageOff size={14} />
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(product)}

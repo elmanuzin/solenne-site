@@ -70,17 +70,39 @@ export default async function Home() {
       {/* ── Hero editorial ─────────────────────────────── */}
       <HeroBannerClickable />
 
+      {/* ── Chips de categoria — mobile only, logo abaixo do hero ── */}
+      <div className="md:hidden overflow-x-auto scrollbar-hide bg-brand-bg border-b border-brand-border/40">
+        <div className="flex gap-2 px-4 py-3 w-max">
+          {[
+            { label: "Vestidos", href: "/catalogo?categoria=vestidos" },
+            { label: "Conjuntos", href: "/catalogo?categoria=conjuntos" },
+            { label: "Bodies", href: "/catalogo?categoria=body" },
+            { label: "Novidades", href: "/catalogo?novidades=true" },
+            { label: "Saias", href: "/catalogo?categoria=saias" },
+            { label: "Croppeds", href: "/catalogo?categoria=croppeds" },
+          ].map((chip) => (
+            <Link
+              key={chip.href}
+              href={chip.href}
+              className="inline-flex items-center whitespace-nowrap rounded-full border border-brand-border bg-white px-4 py-1.5 text-xs font-medium text-brand-text hover:border-brand-accent hover:text-brand-accent transition-colors"
+            >
+              {chip.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+
       {/* ── Trust strip fino ───────────────────────────── */}
       <TrustBar />
 
       {/* ── Destaques da coleção ───────────────────────── */}
-      <section className="py-20 sm:py-28 container-custom">
+      <section className="py-12 sm:py-20 container-custom">
         <SectionHeader label="Seleção" title="Destaques da coleção" href="/catalogo" />
         <ProductGrid products={destaques} />
       </section>
 
       {/* ── Identidade da marca ────────────────────────── */}
-      <section className="py-20 sm:py-28 border-t border-brand-border/50">
+      <section className="py-12 sm:py-20 border-t border-brand-border/50">
         <div className="container-custom">
           <div className="max-w-xl">
             <p className="text-[10px] uppercase tracking-[0.3em] text-brand-accent font-semibold mb-5">
@@ -111,13 +133,13 @@ export default async function Home() {
       </section>
 
       {/* ── Novidades ──────────────────────────────────── */}
-      <section className="py-20 sm:py-28 container-custom border-t border-brand-border/50">
+      <section className="py-12 sm:py-20 container-custom border-t border-brand-border/50">
         <SectionHeader label="Chegadas recentes" title="Novidades" href="/catalogo" />
         <ProductGrid products={novidades} />
       </section>
 
       {/* ── Categorias editoriais ──────────────────────── */}
-      <section className="py-20 sm:py-28 border-t border-brand-border/50 bg-white/40">
+      <section className="py-12 sm:py-20 border-t border-brand-border/50 bg-white/40">
         <div className="container-custom">
           <div className="mb-10">
             <p className="text-[10px] uppercase tracking-[0.3em] text-brand-accent font-semibold mb-2">
@@ -161,13 +183,13 @@ export default async function Home() {
       </section>
 
       {/* ── Mais vendidos ──────────────────────────────── */}
-      <section className="py-20 sm:py-28 container-custom border-t border-brand-border/50">
+      <section className="py-12 sm:py-20 container-custom border-t border-brand-border/50">
         <SectionHeader label="Favoritas" title="Mais vendidos" href="/catalogo" />
         <ProductGrid products={maisVendidos} />
       </section>
 
       {/* ── Clube Solenne — compacto e editorial ───────── */}
-      <section className="py-20 sm:py-28 border-t border-brand-border/50 bg-white/40">
+      <section className="py-12 sm:py-20 border-t border-brand-border/50 bg-white/40">
         <div className="container-custom">
           <div className="rounded-3xl bg-brand-text text-white px-8 py-12 sm:px-14 sm:py-16">
             <p className="text-[10px] uppercase tracking-[0.3em] text-white/40 font-semibold mb-4">

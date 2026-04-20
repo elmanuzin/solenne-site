@@ -118,3 +118,63 @@
     display: inline-block;
     transform: translateY(2px);
 }
+
+/* ─── Mobile-first foundations ──────────────────────── */
+
+/* Prevent any element from causing horizontal overflow */
+img, video, svg, canvas, iframe {
+    max-width: 100%;
+}
+
+/* prefers-reduced-motion: kill all animations for users who asked */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Scrollbar hidden but still scrollable */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+/* ─── Safe-area & touch utilities ───────────────────── */
+
+/* Bottom padding that accounts for mobile nav + safe area.
+   Use on <main> or page wrappers to prevent content going under fixed bars. */
+.pb-mobile-nav {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Extra bottom padding on pages with BOTH bottom nav AND a sticky CTA bar */
+.pb-mobile-double {
+    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Safe-area only padding (no nav) */
+.pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Minimum 44×44 touch target */
+.touch-target {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Focus visible ring — accessible, not annoying */
+.focus-ring:focus-visible {
+    outline: 2px solid var(--color-brand-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+}

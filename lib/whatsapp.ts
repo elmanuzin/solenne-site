@@ -28,22 +28,22 @@ export function generateProductMessage(
     size: string,
     price: number
 ): string {
-    const formattedPrice = price.toLocaleString("pt-BR", {
-        minimumFractionDigits: 2,
-    });
-
-    const message = [
+    const lines = [
         "Olá, vim pelo site da Solenne e quero finalizar meu pedido ✨",
         "",
         `🛍 Produto: ${productName}`,
         `🎨 Cor: ${color}`,
         `📏 Tamanho: ${size}`,
-        `💰 Valor: R$ ${formattedPrice}`,
-        "",
-        "Pode calcular a entrega via Uber para Londrina?",
-    ].join("\n");
+    ];
 
-    return buildWhatsAppLink(message);
+    if (price > 0) {
+        const formattedPrice = price.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+        lines.push(`💰 Valor: R$ ${formattedPrice}`);
+    }
+
+    lines.push("", "Pode calcular a entrega via Uber para Londrina?");
+
+    return buildWhatsAppLink(lines.join("\n"));
 }
 
 export function generateProductAvailabilityMessage(
