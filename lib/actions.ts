@@ -41,7 +41,7 @@ export async function registerAction(formData: FormData) {
         userId: user.id,
         email: user.email,
         name: user.name,
-        role: "user",
+        role: "customer",
     });
 
     await setSessionCookie(token);

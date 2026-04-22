@@ -40,10 +40,10 @@ export async function recordProductView(productId: string): Promise<void> {
         });
 
         if (error) {
-            console.error("Erro ao registrar visualização de produto:", error);
+            console.error("Erro ao registrar visualização de produto:", error.message);
         }
-    } catch (error) {
-        console.error("Erro inesperado ao registrar visualização:", error);
+    } catch {
+        // Swallow silently — view tracking is non-critical
     }
 }
 
@@ -79,8 +79,7 @@ async function fetchMostViewedProducts(limit = 8): Promise<Product[]> {
             })
             .slice(0, limit)
             .map(toProduct);
-    } catch (error) {
-        console.error("Erro ao carregar produtos mais vistos:", error);
+    } catch {
         return [];
     }
 }
@@ -137,8 +136,7 @@ export async function recalculatePopularProducts(): Promise<{ updated: number }>
         }
 
         return { updated: popularIds.length };
-    } catch (error) {
-        console.error("Erro ao recalcular produtos populares:", error);
+    } catch {
         return { updated: 0 };
     }
 }
