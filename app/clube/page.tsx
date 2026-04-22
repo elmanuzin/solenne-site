@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import LoyaltyCard from "@/components/clube/LoyaltyCard";
 import {
     generateLoyaltyInquiryLink,
@@ -65,6 +66,16 @@ export default function ClubePage() {
                     Benefícios exclusivos para clientes da Solenne.
                 </p>
             </header>
+
+            <div className="flex justify-center mb-10">
+                <Link
+                    href="/clube-solenne/login"
+                    className="inline-flex items-center gap-2 bg-brand-text text-white font-semibold px-6 py-3 rounded-full text-sm hover:opacity-90 transition-opacity"
+                >
+                    Já sou membro — Acessar minha conta
+                    <ArrowRight size={14} />
+                </Link>
+            </div>
 
             <section className="grid grid-cols-1 xl:grid-cols-2 gap-8 sm:gap-10">
                 <ClubCard

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -29,6 +29,7 @@ import {
 } from "@/lib/admin-actions";
 import { categories } from "@/lib/data";
 import type { CategorySlug, SizeOption } from "@/types";
+import ProductWizard from "@/components/admin/ProductWizard";
 
 interface ProductAdminItem {
     id: string;
@@ -57,22 +58,59 @@ interface ProductAdminItem {
     images: string[];
 }
 
-const SIZE_OPTIONS: SizeOption[] = ["P", "M", "G", "GG", "Único"];
-const MAX_VARIANT_IMAGES = 5;
-
-type VariantFormRow = {
-    id: string;
-    color: string;
-    stock: number;
-    sizes: SizeOption[];
-    images: string[];
+const categoryLabel: Record<CategorySlug, string> = {
+    conjuntos: "Conjuntos",
+    body: "Body",
+    vestidos: "Vestidos",
+    saias: "Saias",
+    croppeds: "Croppeds",
+    shorts: "Shorts",
 };
 
-type VariantPendingImage = {
-    id: string;
-    file: File;
-    previewUrl: string;
-};
+async function uploadImageWithProgress(
+    file: File,
+    productId: string | null,
+    productName: string,
+    onProgress: (p: number) => void
+): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const data = new FormData();
+        data.append("image", file);
+        if (productId) data.append("productId", productId);
+        data.append("productName", productName);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/admin/upload-product-image");
+
+        xhr.upload.onprogress = (event) => {
+            if (!event.lengthComputable) return;
+            onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+        };
+
+        xhr.onload = () => {
+            if (xhr.status < 200 || xhr.status >= 300) {
+                try {
+                    const parsed = JSON.parse(xhr.responseText) as { error?: string };
+                    reject(new Error(parsed.error || "Falha ao enviar imagem."));
+                } catch {
+                    reject(new Error("Falha ao enviar imagem."));
+                }
+                return;
+            }
+            try {
+                const parsed = JSON.parse(xhr.responseText) as { url?: string };
+                if (!parsed.url) { reject(new Error("Falha ao obter URL da imagem.")); return; }
+                onProgress(100);
+                resolve(parsed.url);
+            } catch {
+                reject(new Error("Resposta inválida ao enviar imagem."));
+            }
+        };
+
+        xhr.onerror = () => reject(new Error("Falha de rede ao enviar imagem."));
+        xhr.send(data);
+    });
+}
 
 export default function EstoqueClient({
     initialProducts,
@@ -82,16 +120,13 @@ export default function EstoqueClient({
     const router = useRouter();
     const [products, setProducts] = useState(initialProducts);
     const [search, setSearch] = useState("");
-    const [isEditorOpen, setIsEditorOpen] = useState(false);
+    const [categoryFilter, setCategoryFilter] = useState<CategorySlug | "">("");
+    const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<ProductAdminItem | null>(null);
     const [actionError, setActionError] = useState("");
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-    const [isUploadingImage, setIsUploadingImage] = useState(false);
-    const [variantRows, setVariantRows] = useState<VariantFormRow[]>([]);
-    const [variantFiles, setVariantFiles] = useState<
-        Record<string, VariantPendingImage[]>
-    >({});
     const [isMutating, setIsMutating] = useState(false);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
     const [csvResult, setCsvResult] = useState<{
         imported: number;
@@ -101,430 +136,126 @@ export default function EstoqueClient({
     const [csvMessage, setCsvMessage] = useState("");
     const [priceEditingId, setPriceEditingId] = useState<string | null>(null);
     const [priceEditValue, setPriceEditValue] = useState("");
-    const variantFilesRef = useRef<Record<string, VariantPendingImage[]>>({});
 
-    useEffect(() => {
-        setProducts(initialProducts);
-    }, [initialProducts]);
-
-    useEffect(() => {
-        variantFilesRef.current = variantFiles;
-    }, [variantFiles]);
-
-    useEffect(() => {
-        return () => {
-            Object.values(variantFilesRef.current).forEach((images) => {
-                images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
-            });
-        };
-    }, []);
-
-    const filteredProducts = useMemo(() => {
-        const term = search.trim().toLowerCase();
-        if (!term) return products;
-
-        return products.filter((product) => {
-            return (
-                product.name.toLowerCase().includes(term) ||
-                product.color.toLowerCase().includes(term) ||
-                product.category.toLowerCase().includes(term)
-            );
-        });
-    }, [products, search]);
-
-    const categoryLabel: Record<CategorySlug, string> = {
-        conjuntos: "Conjuntos",
-        body: "Body",
-        vestidos: "Vestidos",
-        saias: "Saias",
-        croppeds: "Croppeds",
-        shorts: "Shorts",
-    };
+    useEffect(() => { setProducts(initialProducts); }, [initialProducts]);
 
     const isBusy = isMutating || isUploadingImage;
 
-    function clearVariantPendingImages() {
-        setVariantFiles((current) => {
-            Object.values(current).forEach((images) => {
-                images.forEach((image) => URL.revokeObjectURL(image.previewUrl));
-            });
-            return {};
+    const filteredProducts = useMemo(() => {
+        const term = search.trim().toLowerCase();
+        return products.filter((p) => {
+            const matchesSearch =
+                !term ||
+                p.name.toLowerCase().includes(term) ||
+                p.color.toLowerCase().includes(term) ||
+                p.category.toLowerCase().includes(term);
+            const matchesCategory = !categoryFilter || p.category === categoryFilter;
+            return matchesSearch && matchesCategory;
         });
-    }
+    }, [products, search, categoryFilter]);
 
-    function closeEditorModal() {
-        if (isBusy) return;
-        setIsEditorOpen(false);
+    function openCreateWizard() {
+        setActionError("");
         setEditingProduct(null);
         setUploadProgress(null);
-        clearVariantPendingImages();
+        setIsWizardOpen(true);
     }
 
-    function createVariantRow(
-        partial?: Partial<VariantFormRow>
-    ): VariantFormRow {
-        return {
-            id:
-                partial?.id ||
-                (typeof crypto !== "undefined" && "randomUUID" in crypto
-                    ? crypto.randomUUID()
-                    : `${Date.now()}-${Math.random().toString(36).slice(2)}`),
-            color: partial?.color || "",
-            stock: typeof partial?.stock === "number" ? partial.stock : 0,
-            sizes:
-                partial?.sizes && partial.sizes.length
-                    ? partial.sizes
-                    : ["P", "M", "G"],
-            images: (partial?.images || []).slice(0, MAX_VARIANT_IMAGES),
-        };
-    }
-
-    function validateProductForm(formData: FormData): string | null {
-        const name = String(formData.get("name") || "").trim();
-        const description = String(formData.get("description") || "").trim();
-        const price = Number(formData.get("price") || 0);
-        const validVariants = variantRows
-            .map((variant) => ({
-                color: variant.color.trim(),
-                stock: Number(variant.stock || 0),
-                sizes: variant.sizes,
-            }))
-            .filter((variant) => variant.color && variant.sizes.length > 0);
-
-        if (!name || name.length < 2) return "Informe um nome válido para o produto.";
-        if (!validVariants.length) return "Cadastre ao menos uma cor válida.";
-        if (!description || description.length < 5) return "Informe uma descrição válida.";
-        if (!Number.isFinite(price) || price < 0) return "Informe um preço válido.";
-        if (validVariants.length) {
-            const hasInvalidStock = validVariants.some(
-                (variant) => !Number.isInteger(variant.stock) || variant.stock < 0
-            );
-            if (hasInvalidStock) return "Informe estoque válido para cada cor.";
-        }
-
-        return null;
-    }
-
-    async function uploadImageWithProgress(
-        file: File,
-        productId: string | null,
-        productName: string
-    ): Promise<string> {
-        return new Promise((resolve, reject) => {
-            const data = new FormData();
-            data.append("image", file);
-            if (productId) data.append("productId", productId);
-            data.append("productName", productName);
-
-            const xhr = new XMLHttpRequest();
-            xhr.open("POST", "/api/admin/upload-product-image");
-
-            xhr.upload.onprogress = (event) => {
-                if (!event.lengthComputable) return;
-                const progress = Math.min(
-                    100,
-                    Math.round((event.loaded / event.total) * 100)
-                );
-                setUploadProgress(progress);
-            };
-
-            xhr.onload = () => {
-                if (xhr.status < 200 || xhr.status >= 300) {
-                    try {
-                        const parsed = JSON.parse(xhr.responseText) as { error?: string };
-                        reject(new Error(parsed.error || "Falha ao enviar imagem."));
-                    } catch {
-                        reject(new Error("Falha ao enviar imagem."));
-                    }
-                    return;
-                }
-
-                try {
-                    const parsed = JSON.parse(xhr.responseText) as { url?: string };
-                    if (!parsed.url) {
-                        reject(new Error("Falha ao obter URL da imagem."));
-                        return;
-                    }
-                    setUploadProgress(100);
-                    resolve(parsed.url);
-                } catch {
-                    reject(new Error("Resposta inválida ao enviar imagem."));
-                }
-            };
-
-            xhr.onerror = () => {
-                reject(new Error("Falha de rede ao enviar imagem."));
-            };
-
-            xhr.send(data);
-        });
-    }
-
-    function openCreateModal() {
-        setActionError("");
-        setEditingProduct(null);
-        setVariantRows([createVariantRow()]);
-        clearVariantPendingImages();
-        setIsEditorOpen(true);
-    }
-
-    function openCsvModal() {
-        setActionError("");
-        setCsvMessage("");
-        setIsCsvModalOpen(true);
-    }
-
-    function openEditModal(product: ProductAdminItem) {
+    function openEditWizard(product: ProductAdminItem) {
         setActionError("");
         setEditingProduct(product);
-        const fromVariants =
-            product.variants?.length > 0
-                ? product.variants.map((variant) =>
-                      createVariantRow({
-                          color: variant.color,
-                          stock: variant.stock,
-                          sizes: variant.sizes,
-                          images: variant.images || [],
-                      })
-                  )
-                : [
-                      createVariantRow({
-                          color: product.color,
-                          stock: product.stock,
-                          sizes: product.sizes,
-                          images: product.image ? [product.image] : [],
-                      }),
-                  ];
-        setVariantRows(fromVariants);
-        clearVariantPendingImages();
-        setIsEditorOpen(true);
+        setUploadProgress(null);
+        setIsWizardOpen(true);
     }
 
-    function addVariantRow() {
-        setVariantRows((current) => [...current, createVariantRow()]);
-    }
-
-    function removeVariantRow(rowId: string) {
-        if (variantRows.length <= 1) return;
-        setVariantRows((current) => {
-            return current.filter((row) => row.id !== rowId);
-        });
-        setVariantFiles((current) => {
-            const next = { ...current };
-            (next[rowId] || []).forEach((image) =>
-                URL.revokeObjectURL(image.previewUrl)
-            );
-            delete next[rowId];
-            return next;
-        });
-    }
-
-    function updateVariantRow(
-        rowId: string,
-        updater: (current: VariantFormRow) => VariantFormRow
-    ) {
-        setVariantRows((current) =>
-            current.map((row) => (row.id === rowId ? updater(row) : row))
-        );
-    }
-
-    function toggleVariantSize(rowId: string, size: SizeOption) {
-        updateVariantRow(rowId, (row) => {
-            const selected = row.sizes.includes(size);
-            const nextSizes = selected
-                ? row.sizes.filter((item) => item !== size)
-                : [...row.sizes, size];
-            return {
-                ...row,
-                sizes: nextSizes.length ? nextSizes : row.sizes,
-            };
-        });
-    }
-
-    function handleVariantFilesChange(rowId: string, files: FileList | null) {
-        const selectedFiles = files ? Array.from(files) : [];
-        if (!selectedFiles.length) return;
-
-        const currentVariant = variantRows.find((row) => row.id === rowId);
-        if (!currentVariant) return;
-
-        setVariantFiles((current) => {
-            const currentPending = current[rowId] || [];
-            const remainingSlots =
-                MAX_VARIANT_IMAGES -
-                currentVariant.images.length -
-                currentPending.length;
-
-            if (remainingSlots <= 0) {
-                alert("Máximo de 5 imagens por cor");
-                return current;
-            }
-
-            const filesToAdd = selectedFiles.slice(0, remainingSlots);
-            if (selectedFiles.length > remainingSlots) {
-                alert("Máximo de 5 imagens por cor");
-            }
-
-            const pendingToAdd = filesToAdd.map((file) => ({
-                id:
-                    typeof crypto !== "undefined" && "randomUUID" in crypto
-                        ? crypto.randomUUID()
-                        : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-                file,
-                previewUrl: URL.createObjectURL(file),
-            }));
-
-            return {
-                ...current,
-                [rowId]: [...currentPending, ...pendingToAdd],
-            };
-        });
-    }
-
-    function removeVariantPendingImage(rowId: string, imageId: string) {
-        setVariantFiles((current) => {
-            const rowImages = current[rowId] || [];
-            const removedImage = rowImages.find((image) => image.id === imageId);
-            if (removedImage) {
-                URL.revokeObjectURL(removedImage.previewUrl);
-            }
-
-            return {
-                ...current,
-                [rowId]: rowImages.filter((image) => image.id !== imageId),
-            };
-        });
-    }
-
-    function removeVariantPersistedImage(rowId: string, imageUrl: string) {
-        updateVariantRow(rowId, (current) => ({
-            ...current,
-            images: current.images.filter((url) => url !== imageUrl),
-        }));
-    }
-
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
+    function closeWizard() {
         if (isBusy) return;
+        setIsWizardOpen(false);
+        setEditingProduct(null);
+        setUploadProgress(null);
+    }
+
+    async function handleWizardSubmit(formData: FormData) {
         setActionError("");
         setUploadProgress(null);
 
-        const formData = new FormData(event.currentTarget);
-        const validationError = validateProductForm(formData);
-        if (validationError) {
-            setActionError(validationError);
-            return;
+        const productName = String(formData.get("name") || "produto");
+        const productId = editingProduct?.id || null;
+
+        // Collect all file uploads from formData
+        const globalFiles = formData
+            .getAll("images")
+            .filter((e): e is File => e instanceof File && e.size > 0);
+
+        // Collect variant image files (keyed by variantImages_<color>)
+        const variantFileEntries: Array<{ color: string; file: File }> = [];
+        for (const [key, value] of formData.entries()) {
+            if (key.startsWith("variantImages_") && value instanceof File && value.size > 0) {
+                variantFileEntries.push({ color: key.slice("variantImages_".length), file: value });
+            }
         }
 
-        const normalizedVariants = variantRows
-            .map((variant) => ({
-                id: variant.id,
-                color: variant.color.trim(),
-                stock: Math.max(0, Math.trunc(Number(variant.stock || 0))),
-                sizes: Array.from(new Set(variant.sizes)),
-                images: Array.from(new Set(variant.images || [])).slice(
-                    0,
-                    MAX_VARIANT_IMAGES
-                ),
-            }))
-            .filter((variant) => variant.color && variant.sizes.length > 0);
+        const allFilesToUpload = [
+            ...globalFiles.map((file) => ({ color: null as string | null, file })),
+            ...variantFileEntries.map(({ color, file }) => ({ color, file })),
+        ];
 
-        if (!normalizedVariants.length) {
-            setActionError("Cadastre ao menos uma cor com tamanhos para o produto.");
-            return;
-        }
+        let uploadedGlobalUrls: string[] = [];
+        const uploadedByColor: Record<string, string[]> = {};
 
-        if (editingProduct) {
-            formData.set("productId", editingProduct.id);
-        }
-
-        const firstVariant = normalizedVariants[0];
-        const totalStock = normalizedVariants.reduce((sum, variant) => sum + variant.stock, 0);
-        formData.set("stock", String(totalStock));
-        formData.delete("sizes");
-        firstVariant.sizes.forEach((size) => formData.append("sizes", size));
-
-        try {
-            const globalFiles = formData
-                .getAll("images")
-                .filter(
-                    (entry): entry is File =>
-                        entry instanceof File && entry.size > 0
-                );
-
-            const filesToUpload = [
-                ...globalFiles.map((file) => ({ variantId: null as string | null, file })),
-                ...normalizedVariants.flatMap((variant) =>
-                    (variantFiles[variant.id] || []).map((image) => ({
-                        variantId: variant.id,
-                        file: image.file,
-                    }))
-                ),
-            ];
-
-            const uploadedUrls: string[] = [];
-            if (filesToUpload.length > 0) {
-                setIsUploadingImage(true);
-                setUploadProgress(0);
-
-                for (let index = 0; index < filesToUpload.length; index += 1) {
-                    const upload = filesToUpload[index];
-                    const uploadedUrl = await uploadImageWithProgress(
-                        upload.file,
-                        editingProduct?.id || null,
-                        String(formData.get("name") || "produto")
+        if (allFilesToUpload.length > 0) {
+            setIsUploadingImage(true);
+            setUploadProgress(0);
+            try {
+                for (let i = 0; i < allFilesToUpload.length; i++) {
+                    const { color, file } = allFilesToUpload[i];
+                    const url = await uploadImageWithProgress(
+                        file,
+                        productId,
+                        productName,
+                        (p) => setUploadProgress(Math.round(((i + p / 100) / allFilesToUpload.length) * 100))
                     );
-
-                    const progress = Math.round(((index + 1) / filesToUpload.length) * 100);
-                    setUploadProgress(progress);
-
-                    uploadedUrls.push(uploadedUrl);
-                    if (upload.variantId) {
-                        const variantTarget = normalizedVariants.find(
-                            (variant) => variant.id === upload.variantId
-                        );
-                        if (variantTarget) {
-                            variantTarget.images = Array.from(
-                                new Set([...(variantTarget.images || []), uploadedUrl])
-                            );
-                        }
+                    if (color === null) {
+                        uploadedGlobalUrls.push(url);
+                    } else {
+                        if (!uploadedByColor[color]) uploadedByColor[color] = [];
+                        uploadedByColor[color].push(url);
                     }
                 }
+                setUploadProgress(100);
+            } catch (error) {
+                setActionError(error instanceof Error ? error.message : "Falha ao enviar imagens.");
+                setIsUploadingImage(false);
+                setUploadProgress(null);
+                return;
+            } finally {
+                setIsUploadingImage(false);
             }
+        }
 
-            const mergedImageUrls = Array.from(
-                new Set([
-                    ...normalizedVariants.flatMap((variant) => variant.images || []),
-                    ...uploadedUrls,
-                ])
-            );
+        // Merge uploaded URLs into formData
+        const existingGlobal = JSON.parse(String(formData.get("uploadedImageUrls") || "[]")) as string[];
+        const allGlobalUrls = [...existingGlobal, ...uploadedGlobalUrls];
+        formData.set("uploadedImageUrls", JSON.stringify(allGlobalUrls));
+        if (allGlobalUrls[0]) formData.set("uploadedImageUrl", allGlobalUrls[0]);
 
-            formData.set(
-                "variantsJson",
-                JSON.stringify(
-                    normalizedVariants.map((variant) => ({
-                        color: variant.color,
-                        stock: variant.stock,
-                        sizes: variant.sizes,
-                        images: variant.images || [],
-                    }))
-                )
-            );
-            formData.set("uploadedImageUrls", JSON.stringify(mergedImageUrls));
-            if (mergedImageUrls[0]) {
-                formData.set("uploadedImageUrl", mergedImageUrls[0]);
-            }
-        } catch (error) {
-            setActionError(
-                error instanceof Error
-                    ? error.message
-                    : "Falha ao enviar imagens do produto."
-            );
-            setIsUploadingImage(false);
-            setUploadProgress(null);
-            return;
-        } finally {
-            setIsUploadingImage(false);
+        // Merge variant uploaded images into variantsJson
+        const variantsRaw = String(formData.get("variantsJson") || "[]");
+        let variantsJson: Array<{ color: string; stock: number; sizes: SizeOption[]; images: string[] }> = [];
+        try { variantsJson = JSON.parse(variantsRaw); } catch { /* ignore */ }
+
+        variantsJson = variantsJson.map((v) => ({
+            ...v,
+            images: [
+                ...v.images,
+                ...(uploadedByColor[v.color] ?? []),
+            ],
+        }));
+        formData.set("variantsJson", JSON.stringify(variantsJson));
+
+        // Also remove variant file entries from formData (server actions don't need them)
+        for (const key of Array.from(formData.keys()).filter((k) => k.startsWith("variantImages_"))) {
+            formData.delete(key);
         }
 
         setIsMutating(true);
@@ -546,15 +277,12 @@ export default function EstoqueClient({
                             item.id === result.product.id ? result.product : item
                         );
                     }
-
                     return [result.product, ...prev];
                 });
             }
 
-            setIsEditorOpen(false);
+            setIsWizardOpen(false);
             setEditingProduct(null);
-            setVariantRows([]);
-            clearVariantPendingImages();
             setUploadProgress(null);
             router.refresh();
         } catch {
@@ -564,29 +292,18 @@ export default function EstoqueClient({
         }
     }
 
-    async function handleCsvImport(event: FormEvent<HTMLFormElement>) {
+    async function handleCsvImport(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (isBusy) return;
-
         setActionError("");
         setCsvMessage("");
         setIsMutating(true);
         try {
             const formData = new FormData(event.currentTarget);
             const result = await importProductsCsvAction(formData);
-
-            if (result?.error) {
-                setActionError(result.error);
-                return;
-            }
-
-            if (result?.result) {
-                setCsvResult(result.result);
-            }
-            if (result?.message) {
-                setCsvMessage(result.message);
-            }
-
+            if (result?.error) { setActionError(result.error); return; }
+            if (result?.result) setCsvResult(result.result);
+            if (result?.message) setCsvMessage(result.message);
             setIsCsvModalOpen(false);
             router.refresh();
         } catch {
@@ -598,25 +315,18 @@ export default function EstoqueClient({
 
     async function handleDelete(product: ProductAdminItem) {
         if (isBusy) return;
-        const confirmed = window.confirm(
-            `Remover o produto \"${product.name} (${product.color})\"?`
-        );
+        const confirmed = window.confirm(`Remover o produto "${product.name} (${product.color})"?`);
         if (!confirmed) return;
-
         setActionError("");
-        const previousProducts = products;
-        setProducts((prev) => prev.filter((item) => item.id !== product.id));
+        const prev = products;
+        setProducts((p) => p.filter((item) => item.id !== product.id));
         setIsMutating(true);
         try {
             const result = await deleteProductAction(product.id);
-            if (result?.error) {
-                setProducts(previousProducts);
-                setActionError(result.error);
-                return;
-            }
+            if (result?.error) { setProducts(prev); setActionError(result.error); return; }
             router.refresh();
         } catch {
-            setProducts(previousProducts);
+            setProducts(prev);
             setActionError("Não foi possível remover o produto.");
         } finally {
             setIsMutating(false);
@@ -626,28 +336,17 @@ export default function EstoqueClient({
     async function handleToggleAvailability(product: ProductAdminItem) {
         if (isBusy) return;
         setActionError("");
-        const previousProducts = products;
-        setProducts((prev) =>
-            prev.map((item) =>
-                item.id === product.id
-                    ? { ...item, available: !item.available }
-                    : item
-            )
+        const prev = products;
+        setProducts((p) =>
+            p.map((item) => item.id === product.id ? { ...item, available: !item.available } : item)
         );
         setIsMutating(true);
         try {
-            const result = await toggleProductAvailabilityAction(
-                product.id,
-                !product.available
-            );
-            if (result?.error) {
-                setProducts(previousProducts);
-                setActionError(result.error);
-                return;
-            }
+            const result = await toggleProductAvailabilityAction(product.id, !product.available);
+            if (result?.error) { setProducts(prev); setActionError(result.error); return; }
             router.refresh();
         } catch {
-            setProducts(previousProducts);
+            setProducts(prev);
             setActionError("Não foi possível atualizar a disponibilidade.");
         } finally {
             setIsMutating(false);
@@ -655,32 +354,19 @@ export default function EstoqueClient({
     }
 
     async function handleRemoveImage(product: ProductAdminItem) {
-        if (isBusy) return;
-        if (!product.image) return;
-
-        const confirmed = window.confirm(
-            `Remover a imagem de \"${product.name} (${product.color})\"?`
-        );
+        if (isBusy || !product.image) return;
+        const confirmed = window.confirm(`Remover a imagem de "${product.name} (${product.color})"?`);
         if (!confirmed) return;
-
         setActionError("");
-        const previousProducts = products;
-        setProducts((prev) =>
-            prev.map((item) =>
-                item.id === product.id ? { ...item, image: "" } : item
-            )
-        );
+        const prev = products;
+        setProducts((p) => p.map((item) => item.id === product.id ? { ...item, image: "" } : item));
         setIsMutating(true);
         try {
             const result = await removeProductImageAction(product.id);
-            if (result?.error) {
-                setProducts(previousProducts);
-                setActionError(result.error);
-                return;
-            }
+            if (result?.error) { setProducts(prev); setActionError(result.error); return; }
             router.refresh();
         } catch {
-            setProducts(previousProducts);
+            setProducts(prev);
             setActionError("Não foi possível remover a imagem.");
         } finally {
             setIsMutating(false);
@@ -694,23 +380,17 @@ export default function EstoqueClient({
         if (isBusy) return;
         setActionError("");
         const nextValue = !product[flag];
-        const previousProducts = products;
-        setProducts((prev) =>
-            prev.map((item) =>
-                item.id === product.id ? { ...item, [flag]: nextValue } : item
-            )
+        const prev = products;
+        setProducts((p) =>
+            p.map((item) => item.id === product.id ? { ...item, [flag]: nextValue } : item)
         );
         setIsMutating(true);
         try {
             const result = await updateProductFlagsAction(product.id, { [flag]: nextValue });
-            if (result?.error) {
-                setProducts(previousProducts);
-                setActionError(result.error);
-            } else {
-                router.refresh();
-            }
+            if (result?.error) { setProducts(prev); setActionError(result.error); }
+            else { router.refresh(); }
         } catch {
-            setProducts(previousProducts);
+            setProducts(prev);
             setActionError("Não foi possível atualizar o flag.");
         } finally {
             setIsMutating(false);
@@ -728,23 +408,17 @@ export default function EstoqueClient({
         setPriceEditingId(null);
         if (!Number.isFinite(parsed) || parsed < 0 || parsed === product.price) return;
         setActionError("");
-        const previousProducts = products;
-        setProducts((prev) =>
-            prev.map((item) =>
-                item.id === product.id ? { ...item, price: parsed } : item
-            )
+        const prev = products;
+        setProducts((p) =>
+            p.map((item) => item.id === product.id ? { ...item, price: parsed } : item)
         );
         setIsMutating(true);
         try {
             const result = await updateProductPriceAction(product.id, parsed);
-            if (result?.error) {
-                setProducts(previousProducts);
-                setActionError(result.error);
-            } else {
-                router.refresh();
-            }
+            if (result?.error) { setProducts(prev); setActionError(result.error); }
+            else { router.refresh(); }
         } catch {
-            setProducts(previousProducts);
+            setProducts(prev);
             setActionError("Não foi possível atualizar o preço.");
         } finally {
             setIsMutating(false);
@@ -753,6 +427,7 @@ export default function EstoqueClient({
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+            {/* Header */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
                 <div className="flex items-center gap-4">
                     <Link
@@ -772,29 +447,41 @@ export default function EstoqueClient({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
+                    {/* Search */}
                     <div className="relative">
-                        <Search
-                            size={16}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted"
-                        />
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-muted" />
                         <input
                             value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Buscar por nome, categoria ou cor"
-                            className="w-72 pl-9 pr-3 py-2 rounded-xl bg-white border border-brand-border text-sm text-brand-text outline-none focus:ring-2 focus:ring-brand-accent/20"
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Buscar por nome, cor ou categoria"
+                            className="w-64 pl-9 pr-3 py-2 rounded-xl bg-white border border-brand-border text-sm text-brand-text outline-none focus:ring-2 focus:ring-brand-accent/20"
                         />
                     </div>
+
+                    {/* Category filter */}
+                    <select
+                        value={categoryFilter}
+                        onChange={(e) => setCategoryFilter(e.target.value as CategorySlug | "")}
+                        className="py-2 px-3 rounded-xl bg-white border border-brand-border text-sm text-brand-text outline-none focus:ring-2 focus:ring-brand-accent/20"
+                    >
+                        <option value="">Todas categorias</option>
+                        {categories.map((c) => (
+                            <option key={c.slug} value={c.slug}>{c.name}</option>
+                        ))}
+                    </select>
+
                     <button
-                        onClick={openCsvModal}
+                        onClick={() => { setActionError(""); setCsvMessage(""); setIsCsvModalOpen(true); }}
                         disabled={isBusy}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-brand-border bg-white text-brand-text font-semibold text-sm hover:bg-brand-bg transition-colors"
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border bg-white text-brand-text font-semibold text-sm hover:bg-brand-bg transition-colors"
                     >
                         Importar CSV
                     </button>
+
                     <button
-                        onClick={openCreateModal}
+                        onClick={openCreateWizard}
                         disabled={isBusy}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-accent text-white font-semibold text-sm hover:bg-brand-accent-hover transition-colors shadow-lg shadow-brand-accent/20"
+                        className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-brand-accent text-white font-semibold text-sm hover:bg-brand-accent-hover transition-colors shadow-lg shadow-brand-accent/20"
                     >
                         <Plus size={16} />
                         Novo Produto
@@ -802,24 +489,23 @@ export default function EstoqueClient({
                 </div>
             </div>
 
-            {actionError ? (
+            {/* Errors / messages */}
+            {actionError && (
                 <div className="mb-6 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
                     {actionError}
                 </div>
-            ) : null}
-
-            {csvMessage ? (
+            )}
+            {csvMessage && (
                 <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-700">
                     {csvMessage}
                 </div>
-            ) : null}
-
-            {csvResult ? (
+            )}
+            {csvResult && (
                 <div className="mb-6 bg-white border border-brand-border rounded-xl px-4 py-3 text-sm text-brand-text space-y-2">
                     <p className="font-semibold">
                         Importação: {csvResult.imported} importados, {csvResult.skipped} duplicados ignorados.
                     </p>
-                    {csvResult.errors.length > 0 ? (
+                    {csvResult.errors.length > 0 && (
                         <ul className="list-disc pl-5 text-brand-muted space-y-1 max-h-40 overflow-y-auto">
                             {csvResult.errors.map((error, index) => (
                                 <li key={`${error.row}-${index}`}>
@@ -827,10 +513,11 @@ export default function EstoqueClient({
                                 </li>
                             ))}
                         </ul>
-                    ) : null}
+                    )}
                 </div>
-            ) : null}
+            )}
 
+            {/* Products table */}
             <div className="bg-white rounded-2xl border border-brand-border overflow-hidden shadow-sm">
                 <div className="overflow-x-auto">
                     <table className="w-full min-w-[980px] text-left">
@@ -840,22 +527,25 @@ export default function EstoqueClient({
                                 <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted">Categoria</th>
                                 <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted">Cor</th>
                                 <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted text-right">Preço</th>
-                                <th className="px-3 py-4 text-xs uppercase tracking-widest text-brand-muted text-center" title="Destaque"><Star size={13} className="inline" /></th>
-                                <th className="px-3 py-4 text-xs uppercase tracking-widest text-brand-muted text-center" title="Novidade"><Sparkles size={13} className="inline" /></th>
-                                <th className="px-3 py-4 text-xs uppercase tracking-widest text-brand-muted text-center" title="Mais Vendido"><Flame size={13} className="inline" /></th>
+                                <th className="px-3 py-4 text-xs uppercase tracking-widest text-brand-muted text-center" title="Destaque">
+                                    <Star size={13} className="inline" />
+                                </th>
+                                <th className="px-3 py-4 text-xs uppercase tracking-widest text-brand-muted text-center" title="Novidade">
+                                    <Sparkles size={13} className="inline" />
+                                </th>
+                                <th className="px-3 py-4 text-xs uppercase tracking-widest text-brand-muted text-center" title="Mais Vendido">
+                                    <Flame size={13} className="inline" />
+                                </th>
                                 <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted text-center">Status</th>
                                 <th className="px-5 py-4 text-xs uppercase tracking-widest text-brand-muted text-center">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             {filteredProducts.map((product) => (
-                                <tr
-                                    key={product.id}
-                                    className="border-b border-brand-border last:border-0"
-                                >
+                                <tr key={product.id} className="border-b border-brand-border last:border-0">
                                     <td className="px-5 py-4">
                                         <div className="flex items-center gap-4">
-                                            <div className="relative w-14 h-16 rounded-lg overflow-hidden bg-brand-bg-soft border border-brand-border/60">
+                                            <div className="relative w-14 h-16 rounded-lg overflow-hidden bg-brand-bg-soft border border-brand-border/60 shrink-0">
                                                 {product.image ? (
                                                     <Image
                                                         src={product.image}
@@ -871,11 +561,10 @@ export default function EstoqueClient({
                                                 )}
                                             </div>
                                             <div>
-                                                <p className="font-semibold text-brand-text text-sm">
-                                                    {product.name}
-                                                </p>
-                                                <p className="text-xs text-brand-muted mt-1 line-clamp-2">
-                                                    {product.description}
+                                                <p className="font-semibold text-brand-text text-sm">{product.name}</p>
+                                                <p className="text-xs text-brand-muted mt-0.5">
+                                                    Estoque: {product.stock} un.
+                                                    {product.variants?.length > 1 && ` · ${product.variants.length} cores`}
                                                 </p>
                                             </div>
                                         </div>
@@ -944,20 +633,14 @@ export default function EstoqueClient({
                                         </button>
                                     </td>
                                     <td className="px-5 py-4 text-center">
-                                        <span
-                                            className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
-                                                product.available
-                                                    ? "bg-emerald-100 text-emerald-700"
-                                                    : "bg-neutral-200 text-neutral-700"
-                                            }`}
-                                        >
+                                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${product.available ? "bg-emerald-100 text-emerald-700" : "bg-neutral-200 text-neutral-700"}`}>
                                             {product.available ? "Disponível" : "Indisponível"}
                                         </span>
                                     </td>
                                     <td className="px-5 py-4">
                                         <div className="flex items-center justify-center gap-2">
                                             <button
-                                                onClick={() => openEditModal(product)}
+                                                onClick={() => openEditWizard(product)}
                                                 disabled={isBusy}
                                                 className="w-9 h-9 rounded-lg border border-brand-border flex items-center justify-center hover:bg-brand-bg transition-colors"
                                                 title="Editar"
@@ -992,404 +675,32 @@ export default function EstoqueClient({
                                     </td>
                                 </tr>
                             ))}
+                            {!filteredProducts.length && (
+                                <tr>
+                                    <td colSpan={9} className="px-5 py-12 text-center text-sm text-brand-muted">
+                                        {search || categoryFilter
+                                            ? "Nenhum produto encontrado com esses filtros."
+                                            : "Nenhum produto cadastrado ainda."}
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {isEditorOpen ? (
-                <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-                    <button
-                        onClick={closeEditorModal}
-                        disabled={isBusy}
-                        className="absolute inset-0 bg-black/40"
-                        aria-label="Fechar"
-                    />
-                    <div className="relative z-10 w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-3xl border border-brand-border shadow-2xl">
-                        <div className="flex items-center justify-between px-6 py-5 border-b border-brand-border sticky top-0 bg-white">
-                            <h2 className="font-heading text-2xl text-brand-text">
-                                {editingProduct ? "Editar Produto" : "Novo Produto"}
-                            </h2>
-                            <button
-                                onClick={closeEditorModal}
-                                disabled={isBusy}
-                                className="w-9 h-9 rounded-full border border-brand-border flex items-center justify-center"
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
+            {/* ProductWizard */}
+            <ProductWizard
+                isOpen={isWizardOpen}
+                editingProduct={editingProduct}
+                onClose={closeWizard}
+                onSubmit={handleWizardSubmit}
+                isBusy={isBusy}
+                uploadProgress={uploadProgress}
+            />
 
-                        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="sm:col-span-2">
-                                    <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
-                                        Nome
-                                    </label>
-                                    <input
-                                        name="name"
-                                        defaultValue={editingProduct?.name || ""}
-                                        required
-                                        className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-accent/20"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                <div>
-                                    <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
-                                        Categoria
-                                    </label>
-                                    <select
-                                        name="category"
-                                        defaultValue={editingProduct?.category || "vestidos"}
-                                        className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-accent/20"
-                                    >
-                                        {categories.map((category) => (
-                                            <option key={category.slug} value={category.slug}>
-                                                {category.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
-                                        Preço
-                                    </label>
-                                    <input
-                                        name="price"
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        defaultValue={editingProduct?.price ?? 0}
-                                        required
-                                        className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-accent/20"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
-                                        Estoque
-                                    </label>
-                                    <input
-                                        name="stock"
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        defaultValue={editingProduct?.stock ?? 0}
-                                        required
-                                        className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-accent/20"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
-                                    Descrição
-                                </label>
-                                <textarea
-                                    name="description"
-                                    rows={4}
-                                    defaultValue={editingProduct?.description || ""}
-                                    required
-                                    className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-accent/20"
-                                />
-                            </div>
-
-                            <div>
-                                <p className="text-xs uppercase tracking-widest text-brand-muted font-bold mb-2">
-                                    Tamanhos disponíveis
-                                </p>
-                                <div className="flex flex-wrap gap-3">
-                                    {SIZE_OPTIONS.map((size) => {
-                                        const defaultChecked = editingProduct
-                                            ? editingProduct.sizes.includes(size)
-                                            : ["P", "M", "G"].includes(size);
-
-                                        return (
-                                            <label
-                                                key={size}
-                                                className="inline-flex items-center gap-2 text-sm text-brand-text"
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    name="sizes"
-                                                    value={size}
-                                                    defaultChecked={defaultChecked}
-                                                />
-                                                {size}
-                                            </label>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            <div className="rounded-2xl border border-brand-border/70 p-4 space-y-4">
-                                <div className="flex items-center justify-between gap-3">
-                                    <p className="text-xs uppercase tracking-widest text-brand-muted font-bold">
-                                        Cores, tamanhos e estoque por cor
-                                    </p>
-                                    <button
-                                        type="button"
-                                        onClick={addVariantRow}
-                                        className="inline-flex items-center gap-1 rounded-lg border border-brand-border px-3 py-1.5 text-xs font-semibold text-brand-text hover:bg-brand-bg transition-colors"
-                                    >
-                                        <Plus size={12} />
-                                        Adicionar cor
-                                    </button>
-                                </div>
-
-                                <div className="space-y-4">
-                                    {variantRows.map((variant, index) => (
-                                        <div
-                                            key={variant.id}
-                                            className="rounded-xl border border-brand-border/60 p-3 space-y-3"
-                                        >
-                                            <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px_auto] gap-3">
-                                                <input
-                                                    value={variant.color}
-                                                    onChange={(event) =>
-                                                        updateVariantRow(variant.id, (current) => ({
-                                                            ...current,
-                                                            color: event.target.value,
-                                                        }))
-                                                    }
-                                                    placeholder={`Cor ${index + 1}`}
-                                                    className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-accent/20"
-                                                />
-                                                <input
-                                                    value={variant.stock}
-                                                    type="number"
-                                                    min="0"
-                                                    step="1"
-                                                    onChange={(event) =>
-                                                        updateVariantRow(variant.id, (current) => ({
-                                                            ...current,
-                                                            stock: Math.max(
-                                                                0,
-                                                                Math.trunc(Number(event.target.value || 0))
-                                                            ),
-                                                        }))
-                                                    }
-                                                    placeholder="Estoque"
-                                                    className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-accent/20"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeVariantRow(variant.id)}
-                                                    disabled={variantRows.length <= 1}
-                                                    className="rounded-xl border border-brand-border px-3 py-2.5 text-sm text-brand-muted hover:text-brand-text disabled:opacity-40"
-                                                >
-                                                    Remover
-                                                </button>
-                                            </div>
-
-                                            <div className="flex flex-wrap gap-3">
-                                                {SIZE_OPTIONS.map((size) => (
-                                                    <label
-                                                        key={`${variant.id}-${size}`}
-                                                        className="inline-flex items-center gap-2 text-sm text-brand-text"
-                                                    >
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={variant.sizes.includes(size)}
-                                                            onChange={() => toggleVariantSize(variant.id, size)}
-                                                        />
-                                                        {size}
-                                                    </label>
-                                                ))}
-                                            </div>
-
-                                            <div>
-                                                <label className="text-[11px] uppercase tracking-widest text-brand-muted font-bold block mb-2">
-                                                    Imagens desta cor (opcional)
-                                                </label>
-                                                <input
-                                                    type="file"
-                                                    multiple
-                                                    accept="image/*"
-                                                    onChange={(event) => {
-                                                        handleVariantFilesChange(
-                                                            variant.id,
-                                                            event.target.files
-                                                        );
-                                                        event.currentTarget.value = "";
-                                                    }}
-                                                    className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm"
-                                                />
-                                                <p className="text-xs text-brand-muted mt-2">
-                                                    {variant.images.length > 0
-                                                        ? `${variant.images.length} imagem(ns) já vinculada(s) para esta cor.`
-                                                        : "Nenhuma imagem vinculada para esta cor ainda."}
-                                                    {variantFiles[variant.id]?.length
-                                                        ? ` + ${variantFiles[variant.id].length} nova(s) selecionada(s).`
-                                                        : ""}
-                                                    {` (máximo ${MAX_VARIANT_IMAGES})`}
-                                                </p>
-                                                {variant.images.length > 0 ||
-                                                (variantFiles[variant.id] || []).length > 0 ? (
-                                                    <div className="mt-3 grid grid-cols-5 gap-2">
-                                                        {variant.images.map((imageUrl, imageIndex) => (
-                                                            <div
-                                                                key={`${variant.id}-saved-${imageIndex}`}
-                                                                className="relative aspect-square overflow-hidden rounded-md border border-brand-border"
-                                                            >
-                                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                                <img
-                                                                    src={imageUrl}
-                                                                    alt={`${variant.color} ${imageIndex + 1}`}
-                                                                    className="h-full w-full object-cover"
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        removeVariantPersistedImage(
-                                                                            variant.id,
-                                                                            imageUrl
-                                                                        )
-                                                                    }
-                                                                    className="absolute right-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white"
-                                                                >
-                                                                    Remover
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                        {(variantFiles[variant.id] || []).map((image) => (
-                                                            <div
-                                                                key={image.id}
-                                                                className="relative aspect-square overflow-hidden rounded-md border border-brand-border"
-                                                            >
-                                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                                <img
-                                                                    src={image.previewUrl}
-                                                                    alt={`Prévia ${variant.color}`}
-                                                                    className="h-full w-full object-cover"
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() =>
-                                                                        removeVariantPendingImage(
-                                                                            variant.id,
-                                                                            image.id
-                                                                        )
-                                                                    }
-                                                                    className="absolute right-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white"
-                                                                >
-                                                                    Remover
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : null}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <label className="inline-flex items-center gap-2 text-sm text-brand-text">
-                                    <input
-                                        type="checkbox"
-                                        name="available"
-                                        defaultChecked={editingProduct ? editingProduct.available : true}
-                                    />
-                                    Produto disponível
-                                </label>
-                                <label className="inline-flex items-center gap-2 text-sm text-brand-text">
-                                    <input
-                                        type="checkbox"
-                                        name="featured"
-                                        defaultChecked={editingProduct ? editingProduct.featured : false}
-                                    />
-                                    Marcar como destaque
-                                </label>
-                                <label className="inline-flex items-center gap-2 text-sm text-brand-text">
-                                    <input
-                                        type="checkbox"
-                                        name="newArrival"
-                                        defaultChecked={editingProduct ? editingProduct.newArrival : false}
-                                    />
-                                    Marcar como novidade
-                                </label>
-                                <label className="inline-flex items-center gap-2 text-sm text-brand-text">
-                                    <input
-                                        type="checkbox"
-                                        name="bestSeller"
-                                        defaultChecked={editingProduct ? editingProduct.bestSeller : false}
-                                    />
-                                    Marcar como mais vendido
-                                </label>
-                                <label className="inline-flex items-center gap-2 text-sm text-brand-text">
-                                    <input
-                                        type="checkbox"
-                                        name="isLancamento"
-                                        defaultChecked={editingProduct ? editingProduct.isLancamento : false}
-                                    />
-                                    Produto é lançamento
-                                </label>
-                                {editingProduct ? (
-                                    <label className="inline-flex items-center gap-2 text-sm text-brand-text">
-                                        <input type="checkbox" name="removeImage" />
-                                        Remover imagem atual
-                                    </label>
-                                ) : null}
-                            </div>
-
-                            <div>
-                                <label className="text-xs uppercase tracking-widest text-brand-muted font-bold block mb-2">
-                                    Fotos da peça (opcional)
-                                </label>
-                                <input
-                                    name="images"
-                                    type="file"
-                                    multiple
-                                    accept="image/jpeg,image/jpg,image/png,image/webp"
-                                    className="w-full rounded-xl border border-brand-border px-3 py-2.5 text-sm"
-                                />
-                                {editingProduct?.images?.length ? (
-                                    <p className="text-xs text-brand-muted mt-2">
-                                        {editingProduct.images.length} imagem(ns) cadastrada(s). Você pode enviar mais.
-                                    </p>
-                                ) : (
-                                    <p className="text-xs text-brand-muted mt-2">
-                                        Sem foto no momento. Você pode cadastrar depois.
-                                    </p>
-                                )}
-                                {uploadProgress !== null ? (
-                                    <p className="text-xs text-brand-muted mt-2">
-                                        Envio das imagens: {uploadProgress}%
-                                    </p>
-                                ) : null}
-                            </div>
-
-                            <div className="flex items-center justify-end gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsEditorOpen(false)}
-                                    disabled={isBusy}
-                                    className="px-5 py-2.5 rounded-xl border border-brand-border text-brand-muted text-sm font-semibold"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={isBusy}
-                                    className="px-6 py-2.5 rounded-xl bg-brand-accent text-white text-sm font-semibold hover:bg-brand-accent-hover disabled:opacity-50"
-                                >
-                                    {isBusy
-                                        ? uploadProgress !== null
-                                            ? `Enviando imagem (${uploadProgress}%)...`
-                                            : "Salvando..."
-                                        : editingProduct
-                                            ? "Salvar alterações"
-                                            : "Cadastrar produto"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            ) : null}
-
-            {isCsvModalOpen ? (
+            {/* CSV Modal */}
+            {isCsvModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
                     <button
                         onClick={() => setIsCsvModalOpen(false)}
@@ -1399,9 +710,7 @@ export default function EstoqueClient({
                     />
                     <div className="relative z-10 w-full max-w-lg bg-white rounded-3xl border border-brand-border shadow-2xl">
                         <div className="flex items-center justify-between px-6 py-5 border-b border-brand-border">
-                            <h2 className="font-heading text-2xl text-brand-text">
-                                Importar CSV
-                            </h2>
+                            <h2 className="font-heading text-2xl text-brand-text">Importar CSV</h2>
                             <button
                                 onClick={() => setIsCsvModalOpen(false)}
                                 disabled={isBusy}
@@ -1426,7 +735,6 @@ export default function EstoqueClient({
                                     Colunas: nome, categoria, preco, tamanho, cor.
                                 </p>
                             </div>
-
                             <div className="flex items-center justify-end gap-3">
                                 <button
                                     type="button"
@@ -1447,7 +755,7 @@ export default function EstoqueClient({
                         </form>
                     </div>
                 </div>
-            ) : null}
+            )}
         </div>
     );
 }

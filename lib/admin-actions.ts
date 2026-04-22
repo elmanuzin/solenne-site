@@ -36,6 +36,7 @@ import { updateSiteBannerConfig } from "@/services/admin-banner.service";
 import {
     createSale,
     getAdminFinancialSummary,
+    getProductAnalytics,
     listSaleProducts,
 } from "@/services/admin-analytics.service";
 import { CACHE_TAGS } from "@/lib/cache-tags";
@@ -849,5 +850,15 @@ export async function updateProductPriceAction(productId: string, price: number)
         return { success: true as const };
     } catch {
         return { error: "Não foi possível atualizar o preço." };
+    }
+}
+
+export async function getProductAnalyticsAction() {
+    try {
+        await verifyAdminSession();
+        const products = await getProductAnalytics();
+        return { success: true as const, products };
+    } catch {
+        return { error: "Não foi possível carregar analytics de produtos." };
     }
 }

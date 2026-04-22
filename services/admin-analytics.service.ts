@@ -494,3 +494,99 @@ export async function createSale(input: RegisterSaleInput): Promise<{ saleId: st
 
     return { saleId: sale.id };
 }
+
+// ─── Product-level analytics ──────────────────────────────────────────────────
+
+export interface ProductAnalyticsRecord {
+    productId: string;
+    name: string;
+    category: string;
+    unitsSold: number;
+    totalRevenue: number;
+    totalCost: number;
+    totalProfit: number;
+    margin: number;
+    avgPrice: number;
+}
+
+export async function getProductAnalytics(): Promise<ProductAnalyticsRecord[]> {
+    const supabase = createSupabaseAdminClient();
+
+    const { data: itemsData, error: itemsError } = await supabase
+        .from("itens_venda")
+        .select("*");
+
+    if (itemsError) {
+        throw new Error("Falha ao carregar itens de venda.");
+    }
+
+    const items = (itemsData || []) as Row[];
+    if (!items.length) return [];
+
+    const productIds = Array.from(
+        new Set(
+            items
+                .map((item) => pickString(item, ["produto_id", "product_id", "produtoId"]))
+                .filter(Boolean)
+        )
+    );
+
+    if (!productIds.length) return [];
+
+    const { data: productsData, error: productsError } = await supabase
+        .from("produtos")
+        .select("id, nome, categoria, category, preco, custo")
+        .in("id", productIds);
+
+    if (productsError) {
+        throw new Error("Falha ao carregar produtos.");
+    }
+
+    const productsById = new Map<string, Row>();
+    ((productsData || []) as Row[]).forEach((p) => {
+        const id = pickString(p, ["id"]);
+        if (id) productsById.set(id, p);
+    });
+
+    const agg = new Map<
+        string,
+        { name: string; category: string; unitsSold: number; revenue: number; cost: number; profit: number }
+    >();
+
+    items.forEach((item) => {
+        const productId = pickString(item, ["produto_id", "product_id", "produtoId"]);
+        if (!productId) return;
+
+        const product = productsById.get(productId);
+        const name = pickString(product, ["nome", "name"]) || "—";
+        const category = pickString(product, ["categoria", "category"]) || "—";
+
+        const qty = Math.max(1, Math.trunc(pickNumber(item, ["quantidade", "quantity", "qty"]) || 1));
+        const unitPrice = pickNumber(item, ["preco_venda", "preco_unitario", "preco", "price"]) ?? pickNumber(product, ["preco", "price"]) ?? 0;
+        const unitCost = pickNumber(item, ["custo", "cost"]) ?? pickNumber(product, ["custo", "cost"]) ?? 0;
+
+        const current = agg.get(productId) ?? { name, category, unitsSold: 0, revenue: 0, cost: 0, profit: 0 };
+        agg.set(productId, {
+            name,
+            category,
+            unitsSold: current.unitsSold + qty,
+            revenue: current.revenue + unitPrice * qty,
+            cost: current.cost + unitCost * qty,
+            profit: current.profit + (unitPrice - unitCost) * qty,
+        });
+    });
+
+    return Array.from(agg.entries())
+        .map(([productId, data]) => ({
+            productId,
+            name: data.name,
+            category: data.category,
+            unitsSold: data.unitsSold,
+            totalRevenue: data.revenue,
+            totalCost: data.cost,
+            totalProfit: data.profit,
+            margin: data.revenue > 0 ? (data.profit / data.revenue) * 100 : 0,
+            avgPrice: data.unitsSold > 0 ? data.revenue / data.unitsSold : 0,
+        }))
+        .sort((a, b) => b.totalRevenue - a.totalRevenue);
+}

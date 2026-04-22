@@ -4,10 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const items = [
+    { href: "/admin/dashboard", label: "Dashboard" },
     { href: "/admin/produtos", label: "Produtos" },
+    { href: "/admin/estoque", label: "Estoque" },
     { href: "/admin/clientes", label: "Clientes" },
-    { href: "/admin/banner", label: "Banner" },
     { href: "/admin/analytics", label: "Analytics" },
+    { href: "/admin/trafego", label: "Tráfego" },
+    { href: "/admin/pedidos", label: "Pedidos" },
+    { href: "/admin/banner", label: "Banner" },
+    { href: "/admin/configuracoes", label: "Configurações" },
 ];
 
 export default function AdminMenu() {
@@ -18,11 +23,14 @@ export default function AdminMenu() {
     }
 
     return (
-        <div className="border-b border-brand-border bg-white/70 backdrop-blur-sm">
+        <div className="border-b border-brand-border bg-white/70 backdrop-blur-sm sticky top-0 z-30">
             <div className="max-w-7xl mx-auto px-4 md:px-10 py-3">
-                <nav className="flex flex-wrap items-center gap-2">
+                <nav className="flex flex-wrap items-center gap-1.5">
                     {items.map((item) => {
-                        const active = pathname.startsWith(item.href);
+                        const active =
+                            item.href === "/admin/dashboard"
+                                ? pathname === "/admin/dashboard"
+                                : pathname.startsWith(item.href);
                         return (
                             <Link
                                 key={item.href}
