@@ -345,11 +345,17 @@ export default function ProductClient({
                             ) : (
                                 <>
                                     <div className="flex gap-1">
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                        <div className={`w-2 h-2 rounded-full animate-pulse ${isLowStock ? "bg-amber-500" : "bg-emerald-500"}`} />
+                                        <div className={`w-2 h-2 rounded-full ${isLowStock ? "bg-amber-500" : "bg-emerald-500"}`} />
+                                        <div className={`w-2 h-2 rounded-full ${isLowStock ? "bg-amber-500" : "bg-emerald-500"}`} />
                                     </div>
-                                    <span className="text-emerald-700 font-medium">Disponível · {currentStock} {currentStock === 1 ? "unidade" : "unidades"}</span>
+                                    {isLowStock ? (
+                                        <span className="text-amber-700 font-semibold">
+                                            Restam apenas {currentStock} {currentStock === 1 ? "unidade" : "unidades"}!
+                                        </span>
+                                    ) : (
+                                        <span className="text-emerald-700 font-medium">Disponível · {currentStock} {currentStock === 1 ? "unidade" : "unidades"}</span>
+                                    )}
                                 </>
                             )}
                         </div>

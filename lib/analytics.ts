@@ -4,7 +4,11 @@ export type AnalyticsEventName =
   | "add_to_cart"
   | "banner_click"
   | "hero_whatsapp_click"
-  | "hero_catalog_click";
+  | "hero_catalog_click"
+  | "exit_intent_triggered"
+  | "exit_intent_dismiss"
+  | "exit_intent_whatsapp"
+  | "exit_intent_continue";
 
 type AnalyticsPayload = Record<string, string | number | boolean | null | undefined>;
 
