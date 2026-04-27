@@ -8,6 +8,7 @@ import MobileBottomNav from "@/components/mobile/MobileBottomNav";
 import ClubPopup from "@/components/ui/ClubPopup";
 import CartButton from "@/components/cart/CartButton";
 import CartDrawer from "@/components/cart/CartDrawer";
+import CartToast from "@/components/cart/CartToast";
 import ExitIntentModal from "@/components/ui/ExitIntentModal";
 import { CartProvider } from "@/context/CartContext";
 import { Analytics } from "@vercel/analytics/next";
@@ -67,6 +68,7 @@ export default function RootLayout({
           <WhatsAppFloating />
           <CartButton />
           <CartDrawer />
+          <CartToast />
           <ExitIntentModal />
           <Suspense fallback={null}>
             <MobileBottomNav />

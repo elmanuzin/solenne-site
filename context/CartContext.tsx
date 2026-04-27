@@ -16,6 +16,7 @@ type CartContextValue = {
     itemCount: number;
     totalPrice: number;
     isDrawerOpen: boolean;
+    showToast: boolean;
     addToCart: (item: CartItem) => void;
     removeFromCart: (itemKey: string) => void;
     updateQuantity: (itemKey: string, quantity: number) => void;
@@ -63,6 +64,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return parseStoredCart(window.localStorage.getItem(CART_STORAGE_KEY));
     });
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [showToast, setShowToast] = useState(false);
 
     useEffect(() => {
         window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
@@ -91,7 +93,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
             cor: newItem.cor,
         });
 
-        setIsDrawerOpen(true);
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 2000);
     }
 
     function removeFromCart(itemKey: string) {
@@ -130,6 +137,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
             totalPrice: items.reduce((sum, item) => sum + item.preco * item.quantity, 0),
             isDrawerOpen,
+            showToast,
             addToCart,
             removeFromCart,
             updateQuantity,
@@ -138,7 +146,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             closeDrawer,
         }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [items, isDrawerOpen]
+        [items, isDrawerOpen, showToast]
     );
 
     return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

@@ -97,7 +97,26 @@ export default async function Home() {
 
       {/* ── Destaques da coleção ───────────────────────── */}
       <section className="py-12 sm:py-20 container-custom">
-        <SectionHeader label="Seleção" title="Destaques da coleção" href="/catalogo" />
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-brand-accent font-semibold mb-2">
+              Seleção
+            </p>
+            <h2 className="font-heading text-2xl sm:text-3xl font-bold text-brand-text tracking-tight">
+              Destaques da coleção
+            </h2>
+            <p className="text-sm text-brand-muted mt-1.5">
+              Descubra as peças que estão conquistando todo mundo 💖
+            </p>
+          </div>
+          <Link
+            href="/catalogo"
+            className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-brand-muted hover:text-brand-text transition-colors uppercase tracking-[0.2em]"
+          >
+            Ver todos
+            <ArrowRight size={12} />
+          </Link>
+        </div>
         <ProductGrid products={destaques} />
       </section>
 
@@ -182,9 +201,9 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* ── Mais vendidos ──────────────────────────────── */}
+      {/* ── Favoritas da semana ────────────────────────── */}
       <section className="py-12 sm:py-20 container-custom border-t border-brand-border/50">
-        <SectionHeader label="Favoritas" title="Mais vendidos" href="/catalogo" />
+        <SectionHeader label="Esta semana" title="As favoritas da semana 💖" href="/catalogo" />
         <ProductGrid products={maisVendidos} />
       </section>
 

@@ -87,8 +87,14 @@ export default function CatalogoClient({ initialProducts }: CatalogoClientProps)
         else if (selectedPrice === "120-to-160") result = result.filter((p) => p.price >= 120 && p.price <= 160);
         else if (selectedPrice === "over-160") result = result.filter((p) => p.price > 160);
 
-        if (sortBy === "newest") result.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
-        else if (sortBy === "price-asc") result.sort((a, b) => a.price - b.price);
+        if (sortBy === "newest") {
+            result.sort((a, b) => {
+                const priority = (p: typeof a) => p.bestSeller ? 0 : (p.stock > 0 && p.stock <= 5 ? 1 : 2);
+                const diff = priority(a) - priority(b);
+                if (diff !== 0) return diff;
+                return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+            });
+        } else if (sortBy === "price-asc") result.sort((a, b) => a.price - b.price);
         else if (sortBy === "price-desc") result.sort((a, b) => b.price - a.price);
         else if (sortBy === "name-asc") result.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 

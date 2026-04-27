@@ -1,9 +1,9 @@
-import { Truck, RefreshCw, MessageCircle } from "lucide-react";
+import { Truck, MessageCircle, Star } from "lucide-react";
 
 const items = [
-    { icon: Truck, label: "Entrega via Uber em Londrina" },
-    { icon: RefreshCw, label: "Troca fácil pelo WhatsApp" },
-    { icon: MessageCircle, label: "Atendimento rápido e personalizado" },
+    { icon: Truck, label: "Envio para todo o Brasil 🇧🇷" },
+    { icon: MessageCircle, label: "Atendimento rápido no WhatsApp 💬" },
+    { icon: Star, label: "Peças selecionadas com qualidade premium" },
 ];
 
 export default function TrustBar() {

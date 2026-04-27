@@ -18,21 +18,26 @@ export function getCartItemKey(item: CartItem): string {
 }
 
 export function buildCartWhatsAppMessage(items: CartItem[]): string {
-    if (!items.length) return "Olá! Gostaria de fazer um pedido na Solenne ✨";
+    if (!items.length) return "Oi! Gostaria de fazer um pedido na Solenne ✨";
 
-    const names = items.map((item) => item.nome);
-    let productPhrase: string;
+    const lines = ["Oi! 💛", "Gostei dessas peças:"];
 
-    if (names.length === 1) {
-        productPhrase = `do ${names[0]}`;
-    } else if (names.length === 2) {
-        productPhrase = `do ${names[0]} e do ${names[1]}`;
-    } else {
-        const middle = names.slice(1, -1).join(", ");
-        productPhrase = `do ${names[0]}, ${middle} e ${names[names.length - 1]}`;
+    const seen = new Set<string>();
+    for (const item of items) {
+        if (!seen.has(item.productId)) {
+            seen.add(item.productId);
+            if (item.preco > 0) {
+                const price = item.preco.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+                lines.push(`• ${item.nome} — ${price}`);
+            } else {
+                lines.push(`• ${item.nome}`);
+            }
+        }
     }
 
-    return `Gostei ${productPhrase} 😍`;
+    lines.push("", "Sou de _______ 😊", "", "Você pode me ajudar a finalizar meu pedido?");
+
+    return lines.join("\n");
 }
 
 export function buildCartWhatsAppLink(items: CartItem[]): string {

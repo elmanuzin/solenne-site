@@ -252,7 +252,7 @@ export default function ProductClient({
                                 )}
                                 {isLowStock && (
                                     <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[10px] uppercase tracking-widest font-bold px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1">
-                                        <Zap size={10} fill="currentColor" /> Últimas Peças
+                                        <Zap size={10} fill="currentColor" /> Quase esgotando 😱
                                     </span>
                                 )}
                                 {isOutOfStock && (

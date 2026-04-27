@@ -66,7 +66,7 @@ export default function CartDrawer() {
                             <h2 className="font-heading text-2xl text-brand-text leading-none">Carrinho</h2>
                             {totalQty > 0 && (
                                 <p className="text-xs text-brand-accent font-medium mt-0.5">
-                                    Você já escolheu {totalQty} {totalQty === 1 ? "peça" : "peças"} 🛍️
+                                    Você já escolheu {totalQty} {totalQty === 1 ? "peça" : "peças"} 😍
                                 </p>
                             )}
                         </div>
@@ -132,11 +132,20 @@ export default function CartDrawer() {
                             )}
                         </div>
 
-                        {/* Upsell: "Leve também" (carrinho com itens) */}
+                        {/* Copy dinâmica */}
+                        {items.length > 0 && (
+                            <div className="px-5 pb-1 text-center">
+                                <p className="text-xs text-brand-muted font-medium">
+                                    {totalQty === 1 ? "Que tal completar seu look?" : "Seu look está quase pronto ✨"}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Upsell: "Complete seu look" (carrinho com itens) */}
                         {items.length > 0 && upsellProducts.length > 0 && (
                             <div className="px-5 pb-5">
                                 <p className="text-[10px] uppercase tracking-[0.2em] text-brand-muted font-semibold mb-3">
-                                    Leve também
+                                    Complete seu look ✨
                                 </p>
                                 <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
                                     {upsellProducts.map((p) => (
@@ -159,11 +168,11 @@ export default function CartDrawer() {
                             </div>
                         )}
 
-                        {/* Downsell: "Peças mais procuradas" (carrinho vazio) */}
+                        {/* Downsell: (carrinho vazio) */}
                         {items.length === 0 && popular.length > 0 && (
                             <div className="px-5 pb-5">
                                 <p className="text-[10px] uppercase tracking-[0.2em] text-brand-muted font-semibold mb-3">
-                                    Peças mais procuradas
+                                    Essas peças estão fazendo sucesso hoje 🔥
                                 </p>
                                 <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
                                     {popular.slice(0, 4).map((p) => (
@@ -204,15 +213,24 @@ export default function CartDrawer() {
                             </span>
                         </div>
                         {items.length > 0 ? (
-                            <a
-                                href={whatsappLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={() => trackEvent("whatsapp_click", { source: "cart_drawer", items: items.length })}
-                                className="w-full inline-flex items-center justify-center rounded-full bg-[#25D366] text-white py-3.5 text-sm font-semibold hover:opacity-95 transition-opacity"
-                            >
-                                Finalizar pedido no WhatsApp
-                            </a>
+                            <div>
+                                <p className="text-center text-[11px] text-amber-600 font-medium mb-2.5 flex items-center justify-center gap-1">
+                                    ⏳ Seus itens estão reservados por poucos minutos
+                                </p>
+                                <a
+                                    href={whatsappLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => trackEvent("whatsapp_click", { source: "cart_drawer", items: items.length })}
+                                    className="w-full inline-flex flex-col items-center justify-center rounded-full bg-[#25D366] text-white py-3 text-sm font-semibold hover:opacity-95 transition-opacity"
+                                >
+                                    <span>Finalizar pedido no WhatsApp 💬</span>
+                                    <span className="text-[10px] font-normal opacity-80 mt-0.5">Atendimento rápido e personalizado</span>
+                                </a>
+                                <p className="text-center text-xs text-brand-muted mt-2.5">
+                                    Você está a um passo de garantir suas peças 💛
+                                </p>
+                            </div>
                         ) : (
                             <Link
                                 href="/catalogo"
