@@ -16,6 +16,7 @@ import ProductGrid from "@/components/catalog/ProductGrid";
 import FavoritesButton from "@/components/pdp/FavoritesButton";
 import ShareButton from "@/components/pdp/ShareButton";
 import RecentlyViewedBar, { saveRecentProduct } from "@/components/pdp/RecentlyViewedBar";
+import { useCart } from "@/context/CartContext";
 import type { Product, ProductVariantSize, SizeOption } from "@/types";
 import { formatPrice } from "@/lib/utils";
 import { generateProductMessage, generateDefaultMessage } from "@/lib/whatsapp";
@@ -87,6 +88,9 @@ export default function ProductClient({
     const [selectedSize, setSelectedSize] = useState<SizeOption | null>(null);
     const [isZoomed, setIsZoomed] = useState(false);
     const [validationHint, setValidationHint] = useState<string | null>(null);
+    const [addedFeedback, setAddedFeedback] = useState(false);
+
+    const { addToCart } = useCart();
 
     const selectedVariant = variantOptions.find((v) => v.id === selectedVariantId) || variantOptions[0] || {
         id: `legacy-${product.id}`,
@@ -115,7 +119,7 @@ export default function ProductClient({
     const selectedSizeStock = sizeOptions.find((o) => o.size === selectedSize)?.stock ?? 0;
     const currentStock = Math.max(0, selectedVariant.stock);
     const isOutOfStock = !product.available || !selectedVariant.available || currentStock <= 0;
-    const isLowStock = !isOutOfStock && currentStock <= 3;
+    const isLowStock = !isOutOfStock && currentStock <= 2;
 
     const whatsappLink = selectedSize && selectedColor
         ? generateProductMessage(product.name, selectedColor, selectedSize, product.price)
@@ -146,6 +150,30 @@ export default function ProductClient({
         }
         setValidationHint(null);
         trackEvent("whatsapp_click", { source, productId: product.id, size: selectedSize, color: selectedColor });
+    };
+
+    const handleAddToCart = () => {
+        if (!selectedSize) {
+            setValidationHint("Selecione um tamanho antes de adicionar ao carrinho.");
+            return;
+        }
+        if (selectedSizeStock <= 0) {
+            setValidationHint("Esse tamanho está indisponível para a cor selecionada.");
+            return;
+        }
+        setValidationHint(null);
+        addToCart({
+            productId: product.id,
+            nome: product.name,
+            preco: product.price,
+            tamanho: selectedSize,
+            cor: selectedColor,
+            url: `${typeof window !== "undefined" ? window.location.origin : ""}/produto/${product.slug}`,
+            image: activeGalleryImage || product.image || "",
+            quantity: 1,
+        });
+        setAddedFeedback(true);
+        setTimeout(() => setAddedFeedback(false), 2000);
     };
 
     const shareText = `${product.name} — ${formatPrice(product.price)} · Solenne`;
@@ -298,7 +326,7 @@ export default function ProductClient({
                                         </p>
                                         {!isOutOfStock && (
                                             <span className="text-xs text-brand-muted bg-brand-bg-soft px-2.5 py-1 rounded-full">
-                                                Em até 3× sem juros
+                                                Parcele em até 12x no cartão
                                             </span>
                                         )}
                                     </>
@@ -444,7 +472,7 @@ export default function ProductClient({
                         </div>
 
                         {/* CTA — Desktop (≥lg) */}
-                        <div className="hidden lg:block">
+                        <div className="hidden lg:block space-y-3">
                             <AnimatePresence mode="wait">
                                 {!isOutOfStock ? (
                                     <motion.div
@@ -452,22 +480,34 @@ export default function ProductClient({
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: -10 }}
+                                        className="space-y-3"
                                     >
+                                        <button
+                                            type="button"
+                                            onClick={handleAddToCart}
+                                            className={`group relative flex items-center justify-center gap-3 w-full py-5 rounded-full text-lg font-bold transition-all active:scale-[0.98] ${
+                                                addedFeedback
+                                                    ? "bg-emerald-500 text-white"
+                                                    : "bg-brand-text text-white hover:opacity-90 hover:shadow-xl"
+                                            }`}
+                                        >
+                                            <ShoppingBag size={22} />
+                                            <span>{addedFeedback ? "Adicionado ao carrinho!" : "Adicionar ao carrinho"}</span>
+                                        </button>
                                         <a
                                             href={whatsappLink}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             onClick={(e) => handleWhatsAppClick(e, "pdp_desktop")}
-                                            className="group relative flex items-center justify-center gap-3 w-full py-5 rounded-full bg-[#25D366] text-white text-lg font-bold hover:bg-[#20bd5a] hover:shadow-xl hover:shadow-[#25D366]/20 transition-all active:scale-[0.98]"
+                                            className="group relative flex items-center justify-center gap-3 w-full py-4 rounded-full border-2 border-[#25D366] text-[#25D366] text-base font-bold hover:bg-[#25D366] hover:text-white transition-all active:scale-[0.98]"
                                         >
-                                            <MessageCircle size={24} className="fill-white/20" />
+                                            <MessageCircle size={20} />
                                             <span>Comprar pelo WhatsApp</span>
-                                            <span className="absolute right-6 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all">→</span>
                                         </a>
-                                        <p className="text-center text-xs text-brand-muted mt-3">
+                                        <p className="text-center text-xs text-brand-muted">
                                             {selectedSize
-                                                ? "Você será redirecionado para finalizar com nossa equipe."
-                                                : "Selecione cor e tamanho antes de comprar."}
+                                                ? "Adicione ao carrinho ou finalize direto pelo WhatsApp."
+                                                : "Selecione cor e tamanho antes de continuar."}
                                         </p>
                                     </motion.div>
                                 ) : (
@@ -500,20 +540,34 @@ export default function ProductClient({
                 style={{ bottom: "calc(56px + env(safe-area-inset-bottom, 0px))" }}
             >
                 {!isOutOfStock ? (
-                    <a
-                        href={whatsappLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => handleWhatsAppClick(e, "pdp_sticky")}
-                        className={`flex items-center justify-center gap-2.5 w-full py-3.5 rounded-full text-sm font-bold transition-all active:scale-[0.98] ${
-                            selectedSize
-                                ? "bg-[#25D366] text-white shadow-lg shadow-[#25D366]/20"
-                                : "bg-brand-border/60 text-brand-muted"
-                        }`}
-                    >
-                        <MessageCircle size={18} className={selectedSize ? "fill-white/20" : ""} />
-                        {selectedSize ? "Comprar pelo WhatsApp" : "Selecione um tamanho"}
-                    </a>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={handleAddToCart}
+                            className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full text-sm font-bold transition-all active:scale-[0.98] ${
+                                addedFeedback
+                                    ? "bg-emerald-500 text-white"
+                                    : selectedSize
+                                        ? "bg-brand-text text-white"
+                                        : "bg-brand-border/60 text-brand-muted"
+                            }`}
+                        >
+                            <ShoppingBag size={16} />
+                            {addedFeedback ? "Adicionado!" : selectedSize ? "Adicionar ao carrinho" : "Selecione um tamanho"}
+                        </button>
+                        {selectedSize && (
+                            <a
+                                href={whatsappLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => handleWhatsAppClick(e, "pdp_sticky")}
+                                className="flex items-center justify-center w-12 h-12 rounded-full bg-[#25D366] text-white shadow-lg shadow-[#25D366]/20 flex-shrink-0"
+                                aria-label="Comprar pelo WhatsApp"
+                            >
+                                <MessageCircle size={20} className="fill-white/20" />
+                            </a>
+                        )}
+                    </div>
                 ) : (
                     <div className="flex items-center justify-center w-full py-3.5 rounded-full bg-brand-border/60 text-brand-muted text-sm font-bold">
                         Produto indisponível

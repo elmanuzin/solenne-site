@@ -14,9 +14,11 @@ import { trackEvent } from "@/lib/analytics";
 type CartContextValue = {
     items: CartItem[];
     itemCount: number;
+    totalPrice: number;
     isDrawerOpen: boolean;
     addToCart: (item: CartItem) => void;
     removeFromCart: (itemKey: string) => void;
+    updateQuantity: (itemKey: string, quantity: number) => void;
     clearCart: () => void;
     openDrawer: () => void;
     closeDrawer: () => void;
@@ -42,7 +44,11 @@ function parseStoredCart(value: string | null): CartItem[] {
                 typeof record.cor === "string" &&
                 typeof record.url === "string"
             );
-        });
+        }).map((item) => ({
+            ...item,
+            image: typeof item.image === "string" ? item.image : "",
+            quantity: typeof item.quantity === "number" && item.quantity > 0 ? item.quantity : 1,
+        }));
     } catch {
         return [];
     }
@@ -63,30 +69,46 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }, [items]);
 
     function addToCart(item: CartItem) {
-        let wasAdded = false;
+        const newItem: CartItem = { ...item, quantity: item.quantity || 1 };
+        const key = getCartItemKey(newItem);
+
         setItems((current) => {
-            const key = getCartItemKey(item);
-            const exists = current.some((entry) => getCartItemKey(entry) === key);
-            if (exists) {
-                return current;
+            const existingIndex = current.findIndex((entry) => getCartItemKey(entry) === key);
+            if (existingIndex >= 0) {
+                return current.map((entry, index) =>
+                    index === existingIndex
+                        ? { ...entry, quantity: entry.quantity + 1 }
+                        : entry
+                );
             }
-            wasAdded = true;
-            return [...current, item];
+            return [...current, newItem];
         });
-        if (wasAdded) {
-            trackEvent("add_to_cart", {
-                productId: item.productId,
-                nome: item.nome,
-                tamanho: item.tamanho,
-                cor: item.cor,
-            });
-        }
+
+        trackEvent("add_to_cart", {
+            productId: newItem.productId,
+            nome: newItem.nome,
+            tamanho: newItem.tamanho,
+            cor: newItem.cor,
+        });
+
         setIsDrawerOpen(true);
     }
 
     function removeFromCart(itemKey: string) {
         setItems((current) =>
             current.filter((item) => getCartItemKey(item) !== itemKey)
+        );
+    }
+
+    function updateQuantity(itemKey: string, quantity: number) {
+        if (quantity <= 0) {
+            removeFromCart(itemKey);
+            return;
+        }
+        setItems((current) =>
+            current.map((item) =>
+                getCartItemKey(item) === itemKey ? { ...item, quantity } : item
+            )
         );
     }
 
@@ -105,14 +127,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const value = useMemo<CartContextValue>(
         () => ({
             items,
-            itemCount: items.length,
+            itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+            totalPrice: items.reduce((sum, item) => sum + item.preco * item.quantity, 0),
             isDrawerOpen,
             addToCart,
             removeFromCart,
+            updateQuantity,
             clearCart,
             openDrawer,
             closeDrawer,
         }),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [items, isDrawerOpen]
     );
 

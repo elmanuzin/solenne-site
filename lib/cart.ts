@@ -9,6 +9,8 @@ export type CartItem = {
     tamanho: string;
     cor: string;
     url: string;
+    image: string;
+    quantity: number;
 };
 
 export function getCartItemKey(item: CartItem): string {
@@ -16,25 +18,21 @@ export function getCartItemKey(item: CartItem): string {
 }
 
 export function buildCartWhatsAppMessage(items: CartItem[]): string {
-    const lines = [
-        "Olá! Vi alguns produtos no site da Solenne e gostaria de confirmar disponibilidade:",
-        "",
-    ];
+    if (!items.length) return "Olá! Gostaria de fazer um pedido na Solenne ✨";
 
-    items.forEach((item, index) => {
-        lines.push(`Produto: ${item.nome}`);
-        lines.push(`Tamanho: ${item.tamanho}`);
-        lines.push(`Cor: ${item.cor}`);
-        lines.push(`Link: ${item.url}`);
-        if (index < items.length - 1) {
-            lines.push("");
-        }
-    });
+    const names = items.map((item) => item.nome);
+    let productPhrase: string;
 
-    lines.push("");
-    lines.push("Pode me confirmar por favor? 💋");
+    if (names.length === 1) {
+        productPhrase = `do ${names[0]}`;
+    } else if (names.length === 2) {
+        productPhrase = `do ${names[0]} e do ${names[1]}`;
+    } else {
+        const middle = names.slice(1, -1).join(", ");
+        productPhrase = `do ${names[0]}, ${middle} e ${names[names.length - 1]}`;
+    }
 
-    return lines.join("\n");
+    return `Gostei ${productPhrase} 😍`;
 }
 
 export function buildCartWhatsAppLink(items: CartItem[]): string {

@@ -236,6 +236,14 @@ export default function Header() {
                             </button>
                         </form>
 
+                        <Link
+                            href="/catalogo"
+                            onClick={() => setMobileOpen(false)}
+                            className="block py-3 text-base font-bold text-brand-text border-b border-brand-border/40 mb-2"
+                        >
+                            Ver todas as peças
+                        </Link>
+
                         <p className="text-xs uppercase tracking-widest text-brand-muted mb-2 font-medium">
                             Categorias
                         </p>

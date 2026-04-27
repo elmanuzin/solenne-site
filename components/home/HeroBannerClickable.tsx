@@ -10,14 +10,14 @@ export default function HeroBannerClickable() {
   const whatsappLink = generateDefaultMessage();
 
   return (
-    <section className="relative w-full min-h-[80vh] md:min-h-[92vh] flex items-end md:items-center overflow-hidden">
-      {/* Imagem com focal point responsivo — mobile mostra o topo da arte, desktop centraliza */}
+    <section className="relative w-full min-h-[88vh] md:min-h-[92vh] flex items-end md:items-center overflow-hidden">
+      {/* Imagem com focal point responsivo — mobile ancora no topo, desktop centraliza */}
       <Image
         src="/bannersolenesite.jpeg"
         alt="Solenne — Moda Feminina em Londrina"
         fill
         priority
-        className="object-cover object-[center_15%] md:object-center"
+        className="object-cover object-top md:object-center"
         sizes="100vw"
       />
 

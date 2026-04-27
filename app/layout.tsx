@@ -6,6 +6,9 @@ import Footer from "@/components/layout/Footer";
 import WhatsAppFloating from "@/components/layout/WhatsAppFloating";
 import MobileBottomNav from "@/components/mobile/MobileBottomNav";
 import ClubPopup from "@/components/ui/ClubPopup";
+import CartButton from "@/components/cart/CartButton";
+import CartDrawer from "@/components/cart/CartDrawer";
+import { CartProvider } from "@/context/CartContext";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
@@ -56,16 +59,20 @@ export default function RootLayout({
       <body
         className={`${playfair.variable} ${inter.variable} antialiased bg-brand-bg text-brand-text overflow-x-hidden`}
       >
-        <Header />
-        <main className="min-h-screen overflow-x-hidden pb-mobile-nav md:pb-0">{children}</main>
-        <Footer />
-        <WhatsAppFloating />
-        <Suspense fallback={null}>
-          <MobileBottomNav />
-        </Suspense>
-        <Suspense fallback={null}>
-          <ClubPopup />
-        </Suspense>
+        <CartProvider>
+          <Header />
+          <main className="min-h-screen overflow-x-hidden pb-mobile-nav md:pb-0">{children}</main>
+          <Footer />
+          <WhatsAppFloating />
+          <CartButton />
+          <CartDrawer />
+          <Suspense fallback={null}>
+            <MobileBottomNav />
+          </Suspense>
+          <Suspense fallback={null}>
+            <ClubPopup />
+          </Suspense>
+        </CartProvider>
         <Analytics />
         <SpeedInsights />
         {process.env.NEXT_PUBLIC_GA_ID && (

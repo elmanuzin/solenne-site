@@ -1,10 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { MessageCircle } from "lucide-react";
 import { Product } from "@/types";
 import { formatPrice } from "@/lib/utils";
-
-const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "5543988044801";
 
 interface ProductCardProps {
     product: Product;
@@ -13,11 +10,6 @@ interface ProductCardProps {
 export default function ProductCard({ product }: ProductCardProps) {
     const isUnavailable = !product.available || product.stock <= 0;
     const photoCount = product.images?.length ?? (product.image ? 1 : 0);
-
-    const waText = encodeURIComponent(
-        `Olá! Vi a peça *${product.name}* no site da Solenne e tenho interesse ✨`
-    );
-    const waLink = `https://wa.me/${WHATSAPP_NUMBER}?text=${waText}`;
 
     return (
         <div className="relative group">
@@ -123,19 +115,6 @@ export default function ProductCard({ product }: ProductCardProps) {
                     </div>
                 </div>
             </Link>
-
-            {/* WhatsApp quick-buy — mobile only, fora do Link para não aninhar âncoras */}
-            {!isUnavailable && (
-                <a
-                    href={waLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute top-2.5 right-2.5 z-20 md:hidden flex items-center justify-center w-7 h-7 rounded-full bg-[#25D366] text-white shadow-md active:scale-95 transition-transform"
-                    aria-label={`Perguntar sobre ${product.name} no WhatsApp`}
-                >
-                    <MessageCircle size={13} fill="white" stroke="white" />
-                </a>
-            )}
         </div>
     );
 }

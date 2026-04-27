@@ -2,18 +2,19 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Home, LayoutGrid, Shirt, Sparkles } from "lucide-react";
+import { Home, LayoutGrid, Shirt, ShoppingBag } from "lucide-react";
+import { useCart } from "@/context/CartContext";
 
-const navItems = [
+const staticNavItems = [
     { label: "Início", href: "/", icon: Home, exact: true },
     { label: "Catálogo", href: "/catalogo", icon: LayoutGrid, exact: false },
     { label: "Vestidos", href: "/catalogo?categoria=vestidos", icon: Shirt, exact: false },
-    { label: "Novidades", href: "/catalogo?novidades=true", icon: Sparkles, exact: false },
 ];
 
 export default function MobileBottomNav() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
+    const { itemCount, openDrawer } = useCart();
 
     if (pathname.startsWith("/admin")) return null;
 
@@ -34,7 +35,7 @@ export default function MobileBottomNav() {
             style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
         >
             <div className="flex items-stretch h-14">
-                {navItems.map(({ label, href, icon: Icon }) => {
+                {staticNavItems.map(({ label, href, icon: Icon }) => {
                     const active = isActive(href);
                     return (
                         <Link
@@ -49,6 +50,24 @@ export default function MobileBottomNav() {
                         </Link>
                     );
                 })}
+
+                {/* Carrinho */}
+                <button
+                    type="button"
+                    onClick={openDrawer}
+                    className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium tracking-wide text-brand-muted relative touch-target"
+                    aria-label="Abrir carrinho"
+                >
+                    <span className="relative">
+                        <ShoppingBag size={20} strokeWidth={1.7} />
+                        {itemCount > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-0.5 rounded-full bg-brand-accent text-white text-[9px] font-semibold flex items-center justify-center">
+                                {itemCount > 9 ? "9+" : itemCount}
+                            </span>
+                        )}
+                    </span>
+                    Carrinho
+                </button>
             </div>
         </nav>
     );
