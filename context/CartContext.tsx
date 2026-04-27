@@ -8,7 +8,7 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import { CART_STORAGE_KEY, type CartItem, getCartItemKey } from "@/lib/cart";
+import { CART_STORAGE_KEY, DELIVERY_STORAGE_KEY, type CartItem, type DeliveryMethod, getCartItemKey } from "@/lib/cart";
 import { trackEvent } from "@/lib/analytics";
 
 type CartContextValue = {
@@ -17,6 +17,8 @@ type CartContextValue = {
     totalPrice: number;
     isDrawerOpen: boolean;
     showToast: boolean;
+    deliveryMethod: DeliveryMethod | null;
+    setDeliveryMethod: (m: DeliveryMethod) => void;
     addToCart: (item: CartItem) => void;
     removeFromCart: (itemKey: string) => void;
     updateQuantity: (itemKey: string, quantity: number) => void;
@@ -65,6 +67,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [showToast, setShowToast] = useState(false);
+    const [deliveryMethod, setDeliveryMethodState] = useState<DeliveryMethod | null>(() => {
+        if (typeof window === "undefined") return null;
+        const v = window.localStorage.getItem(DELIVERY_STORAGE_KEY);
+        return v === "uber" || v === "pickup" ? v : null;
+    });
+
+    function setDeliveryMethod(m: DeliveryMethod) {
+        setDeliveryMethodState(m);
+        window.localStorage.setItem(DELIVERY_STORAGE_KEY, m);
+    }
 
     useEffect(() => {
         window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
@@ -138,6 +150,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
             totalPrice: items.reduce((sum, item) => sum + item.preco * item.quantity, 0),
             isDrawerOpen,
             showToast,
+            deliveryMethod,
+            setDeliveryMethod,
             addToCart,
             removeFromCart,
             updateQuantity,
@@ -146,7 +160,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             closeDrawer,
         }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [items, isDrawerOpen, showToast]
+        [items, isDrawerOpen, showToast, deliveryMethod]
     );
 
     return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

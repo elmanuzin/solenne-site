@@ -6,18 +6,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Minus, Plus, Trash2, X } from "lucide-react";
 import { useCart } from "@/context/CartContext";
-import { buildCartWhatsAppLink, getCartItemKey } from "@/lib/cart";
+import { buildCartWhatsAppLink, getCartItemKey, type AddressData } from "@/lib/cart";
+import { useCity } from "@/lib/city";
 import { formatPrice } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics";
+import AddressFlow from "@/components/cart/AddressFlow";
 import type { Product } from "@/types";
 
 export default function CartDrawer() {
     const pathname = usePathname();
     const hideOnAdmin = pathname.startsWith("/admin");
-    const { items, totalPrice, isDrawerOpen, closeDrawer, removeFromCart, updateQuantity, clearCart } = useCart();
+    const { items, totalPrice, isDrawerOpen, closeDrawer, removeFromCart, updateQuantity, clearCart, deliveryMethod, setDeliveryMethod } = useCart();
 
     const [popular, setPopular] = useState<Product[]>([]);
     const [hasFetched, setHasFetched] = useState(false);
+    const [address, setAddress] = useState<AddressData | null>(null);
+    const city = useCity();
 
     useEffect(() => {
         if (!isDrawerOpen || hasFetched) return;
@@ -37,12 +41,16 @@ export default function CartDrawer() {
 
     if (hideOnAdmin) return null;
 
-    const whatsappLink = buildCartWhatsAppLink(items);
     const totalQty = items.reduce((s, i) => s + i.quantity, 0);
-
-    // Upsell: produtos populares que não estão no carrinho
     const cartProductIds = new Set(items.map((i) => i.productId));
     const upsellProducts = popular.filter((p) => !cartProductIds.has(p.id)).slice(0, 3);
+
+    const canCheckout = items.length > 0 && deliveryMethod !== null;
+    const whatsappLink = buildCartWhatsAppLink(items, {
+        city,
+        deliveryMethod: deliveryMethod ?? undefined,
+        address: deliveryMethod === "uber" ? address : undefined,
+    });
 
     return (
         <div
@@ -141,7 +149,7 @@ export default function CartDrawer() {
                             </div>
                         )}
 
-                        {/* Upsell: "Complete seu look" (carrinho com itens) */}
+                        {/* Upsell */}
                         {items.length > 0 && upsellProducts.length > 0 && (
                             <div className="px-5 pb-5">
                                 <p className="text-[10px] uppercase tracking-[0.2em] text-brand-muted font-semibold mb-3">
@@ -149,16 +157,9 @@ export default function CartDrawer() {
                                 </p>
                                 <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
                                     {upsellProducts.map((p) => (
-                                        <Link
-                                            key={p.id}
-                                            href={`/produto/${p.slug}`}
-                                            onClick={closeDrawer}
-                                            className="flex-shrink-0 w-28 group"
-                                        >
+                                        <Link key={p.id} href={`/produto/${p.slug}`} onClick={closeDrawer} className="flex-shrink-0 w-28 group">
                                             <div className="relative w-28 h-36 rounded-xl overflow-hidden bg-brand-bg-soft mb-1.5">
-                                                {p.image && (
-                                                    <Image src={p.image} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="112px" />
-                                                )}
+                                                {p.image && <Image src={p.image} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="112px" />}
                                             </div>
                                             <p className="text-xs font-semibold text-brand-text line-clamp-1 leading-snug">{p.name}</p>
                                             <p className="text-xs font-bold text-brand-accent mt-0.5">{formatPrice(p.price)}</p>
@@ -168,7 +169,7 @@ export default function CartDrawer() {
                             </div>
                         )}
 
-                        {/* Downsell: (carrinho vazio) */}
+                        {/* Downsell */}
                         {items.length === 0 && popular.length > 0 && (
                             <div className="px-5 pb-5">
                                 <p className="text-[10px] uppercase tracking-[0.2em] text-brand-muted font-semibold mb-3">
@@ -176,22 +177,43 @@ export default function CartDrawer() {
                                 </p>
                                 <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
                                     {popular.slice(0, 4).map((p) => (
-                                        <Link
-                                            key={p.id}
-                                            href={`/produto/${p.slug}`}
-                                            onClick={closeDrawer}
-                                            className="flex-shrink-0 w-28 group"
-                                        >
+                                        <Link key={p.id} href={`/produto/${p.slug}`} onClick={closeDrawer} className="flex-shrink-0 w-28 group">
                                             <div className="relative w-28 h-36 rounded-xl overflow-hidden bg-brand-bg-soft mb-1.5">
-                                                {p.image && (
-                                                    <Image src={p.image} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="112px" />
-                                                )}
+                                                {p.image && <Image src={p.image} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="112px" />}
                                             </div>
                                             <p className="text-xs font-semibold text-brand-text line-clamp-1 leading-snug">{p.name}</p>
                                             <p className="text-xs font-bold text-brand-accent mt-0.5">{formatPrice(p.price)}</p>
                                         </Link>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Delivery method + address */}
+                        {items.length > 0 && (
+                            <div className="px-5 pb-5">
+                                <p className="text-xs font-bold text-brand-text uppercase tracking-[0.15em] mb-3">
+                                    Como você quer receber?
+                                </p>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setDeliveryMethod("uber"); setAddress(null); }}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-semibold transition-all ${deliveryMethod === "uber" ? "border-brand-accent bg-brand-accent text-white" : "border-brand-border text-brand-text"}`}
+                                    >
+                                        🚗 Entrega Uber
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setDeliveryMethod("pickup"); setAddress(null); }}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-sm font-semibold transition-all ${deliveryMethod === "pickup" ? "border-brand-accent bg-brand-accent text-white" : "border-brand-border text-brand-text"}`}
+                                    >
+                                        📍 Retirar
+                                    </button>
+                                </div>
+                                {deliveryMethod === "uber" && (
+                                    <AddressFlow value={address} onChange={setAddress} />
+                                )}
                             </div>
                         )}
                     </div>
@@ -208,28 +230,38 @@ export default function CartDrawer() {
                             <button type="button" onClick={clearCart} disabled={items.length === 0} className="text-xs text-brand-muted hover:text-brand-text disabled:opacity-40">
                                 Limpar carrinho
                             </button>
-                            <span className="text-xs text-brand-muted">
-                                {totalQty} {totalQty === 1 ? "item" : "itens"}
-                            </span>
+                            <span className="text-xs text-brand-muted">{totalQty} {totalQty === 1 ? "item" : "itens"}</span>
                         </div>
                         {items.length > 0 ? (
                             <div>
-                                <p className="text-center text-[11px] text-amber-600 font-medium mb-2.5 flex items-center justify-center gap-1">
-                                    ⏳ Seus itens estão reservados por poucos minutos
-                                </p>
+                                {!deliveryMethod && (
+                                    <p className="text-center text-xs text-amber-600 font-medium mb-2">
+                                        Selecione como quer receber antes de finalizar
+                                    </p>
+                                )}
+                                {deliveryMethod && (
+                                    <p className="text-center text-[11px] text-amber-600 font-medium mb-2.5 flex items-center justify-center gap-1">
+                                        ⏳ Seus itens estão reservados por poucos minutos
+                                    </p>
+                                )}
                                 <a
-                                    href={whatsappLink}
-                                    target="_blank"
+                                    href={canCheckout ? whatsappLink : undefined}
+                                    onClick={() => {
+                                        if (!canCheckout) return;
+                                        trackEvent("whatsapp_click", { source: "cart_drawer", items: items.length });
+                                    }}
+                                    className={`w-full inline-flex flex-col items-center justify-center rounded-full py-3 text-sm font-semibold transition-opacity ${canCheckout ? "bg-[#25D366] text-white hover:opacity-95 cursor-pointer" : "bg-brand-border text-brand-muted cursor-not-allowed opacity-60"}`}
+                                    target={canCheckout ? "_blank" : undefined}
                                     rel="noopener noreferrer"
-                                    onClick={() => trackEvent("whatsapp_click", { source: "cart_drawer", items: items.length })}
-                                    className="w-full inline-flex flex-col items-center justify-center rounded-full bg-[#25D366] text-white py-3 text-sm font-semibold hover:opacity-95 transition-opacity"
                                 >
                                     <span>Finalizar pedido no WhatsApp 💬</span>
                                     <span className="text-[10px] font-normal opacity-80 mt-0.5">Atendimento rápido e personalizado</span>
                                 </a>
-                                <p className="text-center text-xs text-brand-muted mt-2.5">
-                                    Você está a um passo de garantir suas peças 💛
-                                </p>
+                                {canCheckout && (
+                                    <p className="text-center text-xs text-brand-muted mt-2.5">
+                                        Você está a um passo de garantir suas peças 💛
+                                    </p>
+                                )}
                             </div>
                         ) : (
                             <Link

@@ -6,12 +6,14 @@ import { X, ShoppingBag } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { buildCartWhatsAppLink } from "@/lib/cart";
 import { generateDefaultMessage } from "@/lib/whatsapp";
+import { useCity } from "@/lib/city";
 import { trackEvent } from "@/lib/analytics";
 
 export default function ExitIntentModal() {
     const [visible, setVisible] = useState(false);
     const [gone, setGone] = useState(false); // permanent dismiss after conversion or explicit close
     const { items, itemCount, openDrawer } = useCart();
+    const city = useCity();
     const itemCountRef = useRef(itemCount);
     useEffect(() => { itemCountRef.current = itemCount; }, [itemCount]);
 
@@ -61,7 +63,7 @@ export default function ExitIntentModal() {
     if (!visible) return null;
 
     const hasItems = itemCount > 0;
-    const waLink = hasItems ? buildCartWhatsAppLink(items) : generateDefaultMessage();
+    const waLink = hasItems ? buildCartWhatsAppLink(items, { city }) : generateDefaultMessage();
 
     function dismiss() {
         setVisible(false);

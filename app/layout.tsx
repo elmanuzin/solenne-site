@@ -49,6 +49,11 @@ export const metadata: Metadata = {
     "conjuntos",
     "elegância",
   ],
+  icons: {
+    icon: "/8546.ico",
+    shortcut: "/8546.ico",
+    apple: "/8546.ico",
+  },
 };
 
 export default function RootLayout({
